@@ -1,21 +1,47 @@
-import React, { useState } from 'react';
-import { SafeAreaView, View, Text, StyleSheet, TouchableOpacity, ImageBackground, Image } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { SafeAreaView, View, Text, StyleSheet, TouchableOpacity, ImageBackground, Image, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Lista from '../../components/Lista';
 import { colors } from '../../theme/colors';
-
-const DATOS_MOCK = [
-  { id: 1, titulo: 'Casa de Campo Familiar', ubicacion: 'Valle de Alcocer, SMA', precio: '28,000', habitaciones: 4, banos: 3, metros: 250, imagen: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?q=80&w=1000&auto=format&fit=crop' },
-  { id: 2, titulo: 'Loft Industrial Minimalista', ubicacion: 'Centro Histórico, SMA', precio: '12,500', habitaciones: 1, banos: 1, metros: 75, imagen: 'https://images.unsplash.com/photo-11600596542815-ffad4c1539a9?q=80&w=1000&auto=format&fit=crop' },
-  { id: 3, titulo: 'Casa Rústica de Piedra', ubicacion: 'Colonia Atascadero, SMA', precio: '32,000', habitaciones: 3, banos: 2.5, metros: 190, imagen: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=1000&auto=format&fit=crop' },
-  { id: 4, titulo: 'Depa Céntrico Ejecutivo', ubicacion: 'Zona Centro, SMA', precio: '15,000', habitaciones: 2, banos: 1, metros: 85, imagen: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?q=80&w=1000&auto=format&fit=crop' },
-  { id: 5, titulo: 'Cabaña de Campo Confortable', ubicacion: 'Los Rodríguez, SMA', precio: '19,000', habitaciones: 2, banos: 2, metros: 110, imagen: 'https://images.unsplash.com/photo-1583608205776-bfd35f0d9f83?q=80&w=1000&auto=format&fit=crop' },
-  { id: 6, titulo: 'Depa Rústico Con Encanto', ubicacion: 'Barrio de San Juan de Dios, SMA', precio: '14,000', habitaciones: 1, banos: 1, metros: 65, imagen: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?q=80&w=1000&auto=format&fit=crop' },
-  { id: 7, titulo: 'Residencia de Lujo Rústica', ubicacion: 'Club de Golf, SMA', precio: '45,000', habitaciones: 5, banos: 4, metros: 380, imagen: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?q=80&w=1000&auto=format&fit=crop' }
-];
+import { serviceGet } from '../../services/api';
 
 export default function DashboardScreen({ navigation }) {
   const [favoritos, setFavoritos] = useState([]);
+  const [propiedades, setPropiedades] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const formatearPrecio = (num) => {
+    return Number(num).toLocaleString('es-MX');
+  };
+
+  const cargarPropiedades = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await serviceGet('propiedades');
+      const lista = res?.data?.data ?? [];
+      const mapeadas = lista.map((item) => ({
+        id: item.id_propiedad,
+        titulo: item.titulo,
+        ubicacion: `${item.colonia}, ${item.ciudad}`,
+        precio: formatearPrecio(item.precio),
+        habitaciones: item.habitaciones,
+        banos: item.banos,
+        metros: item.metros_cuadrados,
+        imagen: Array.isArray(item.fotos) && item.fotos.length > 0 ? item.fotos[0] : '',
+      }));
+      setPropiedades(mapeadas);
+    } catch (e) {
+      setError(e.message || 'Error al cargar propiedades');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    cargarPropiedades();
+  }, [cargarPropiedades]);
 
   const toggleFavorito = (id) => {
     setFavoritos((prev) => prev.includes(id) ? prev.filter((fid) => fid !== id) : [...prev, id]);
@@ -65,13 +91,27 @@ export default function DashboardScreen({ navigation }) {
       </View>
 
       <View style={styles.catalogSection}>
-        <Lista
-          propiedades={DATOS_MOCK}
-          onPropiedadPress={(propiedad) => navigation.navigate('Detalle', { propiedadId: propiedad.id })}
-          headerComponent={renderHeaderContenido()}
-          favoritos={favoritos}
-          onToggleFavorito={toggleFavorito}
-        />
+        {loading ? (
+          <View style={styles.centerState}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.stateText}>Cargando propiedades...</Text>
+          </View>
+        ) : error ? (
+          <View style={styles.centerState}>
+            <Text style={styles.stateText}>{error}</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={cargarPropiedades} activeOpacity={0.85}>
+              <Text style={styles.retryButtonText}>Reintentar</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <Lista
+            propiedades={propiedades}
+            onPropiedadPress={(propiedad) => navigation.navigate('Detalle', { propiedadId: propiedad.id })}
+            headerComponent={renderHeaderContenido()}
+            favoritos={favoritos}
+            onToggleFavorito={toggleFavorito}
+          />
+        )}
       </View>
     </SafeAreaView>
   );
@@ -196,5 +236,29 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textSecondary,
     marginTop: 4,
+  },
+  centerState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  stateText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 16,
+  },
+  retryButton: {
+    marginTop: 20,
+    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 28,
+    borderRadius: 25,
+  },
+  retryButtonText: {
+    color: colors.cardBg,
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

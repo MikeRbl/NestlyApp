@@ -103,6 +103,11 @@ export default function RegistroScreen({ navigation }) {
         { text: 'OK', onPress: () => navigation.navigate('Login') },
       ]);
     } catch (error) {
+      if (error.status === 422 && error.error && error.error.errors) {
+    console.log("Errores de validación de Laravel:", JSON.stringify(error.error.errors, null, 2));
+  } else {
+    console.error("Otro error:", error.message);
+  }
       Alert.alert(
         'Error en el registro',
         error.error?.message || error.error?.errors?.email?.[0] || 'Ocurrió un error. Inténtalo de nuevo.'

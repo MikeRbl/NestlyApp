@@ -1,4 +1,4 @@
-export const MOCK_AUTH = true;
+export const MOCK_AUTH = false;
 
 export const MOCK_USER = {
   id: 1,

@@ -1,6 +1,5 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import DashboardScreen from '../screens/dashboard/DashboardScreen';
-import DetalleScreen from '../screens/details/DetalleScreen';
 import PublicarPropiedadScreen from '../screens/publish/PublicarPropiedadScreen';
 import PerfilScreen from '../screens/PerfilScreen';
 import { colors } from '../theme/colors';
@@ -18,7 +17,6 @@ export default function MainTabNavigator() {
       }}
     >
       <Tab.Screen name="Dashboard" component={DashboardScreen} />
-      <Tab.Screen name="Detalle" component={DetalleScreen} />
       <Tab.Screen name="Publicar" component={PublicarPropiedadScreen} />
       <Tab.Screen name="Perfil" component={PerfilScreen} />
     </Tab.Navigator>
