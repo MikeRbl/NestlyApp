@@ -14,7 +14,7 @@ import { useForm, Controller } from 'react-hook-form';
 import * as Location from 'expo-location';
 import Toast from 'react-native-toast-message';
 import { colors } from '../theme/colors';
-import { crearPropiedad, getTiposDePropiedad } from '../api';
+import { crearPropiedad, getTiposDePropiedad } from '../services/api';
 import ToggleSwitch from './ToggleSwitch';
 import SelectModal from './SelectModal';
 import PhotoPicker from './PhotoPicker';

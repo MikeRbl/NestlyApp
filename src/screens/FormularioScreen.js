@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   ScrollView,
   Image,
+  StyleSheet,
 } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
 import { serviceGet, servicePut, servicePost } from '../services/api';

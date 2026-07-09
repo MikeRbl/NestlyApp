@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
+
 import {
   View,
   Text,
@@ -13,7 +14,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AuthContext } from '../context/AuthContext';
-import { serviceGet, servicePost, BASE_URL } from '../services/api';
+import { serviceGet, servicePost, BASE_URL, MEDIA_URL } from '../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import FormularioScreen from './FormularioScreen';
 
@@ -310,7 +311,7 @@ function PropertyCard({ propiedad }) {
       <View style={styles.propertyImageContainer}>
         {propiedad.fotos?.length > 0 ? (
           <Image
-            source={{ uri: `${MEDIA_URL}/storage/${propiedad.fotos[0]}` }}
+             source={{ uri: `${MEDIA_URL}/storage/${propiedad.fotos[0]}` }}
             style={styles.propertyImage}
           />
         ) : (
