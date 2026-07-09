@@ -1,5 +1,6 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { ActivityIndicator, View } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { colors } from './src/theme/colors';
 import AuthNavigator from './src/navigation/AuthNavigator';
@@ -27,6 +28,7 @@ export default function App() {
           <RootNavigator />
         </View>
       </NavigationContainer>
+      <Toast />
     </AuthProvider>
   );
 }
