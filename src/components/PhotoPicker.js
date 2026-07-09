@@ -92,8 +92,72 @@ export default function PhotoPicker({
     onPhotosChange(updated);
   }
 
+  function renderErrorMessage() {
+    if (!showError && !permissionError) return null;
+    const message = permissionError
+      || (error === 'required' || error === 'minPhotos'
+        ? 'Debes subir al menos 5 imágenes.'
+        : error === 'maxPhotos'
+          ? `No puedes subir más de ${maxPhotos} imágenes.`
+          : error);
+    return <Text style={styles.errorText}>{message}</Text>;
+  }
+
+  function renderButtons() {
+    const disabled = photos.length >= maxPhotos;
+    if (isWeb) {
+      return (
+        <TouchableOpacity
+          style={[styles.button, styles.fullWidthButton, disabled && styles.buttonDisabled]}
+          onPress={pickFromGallery}
+          activeOpacity={0.8}
+          disabled={disabled}
+        >
+          <Text style={styles.buttonText}>Seleccionar imágenes</Text>
+        </TouchableOpacity>
+      );
+    }
+    return (
+      <View style={styles.buttonRow}>
+        <TouchableOpacity
+          style={[styles.button, disabled && styles.buttonDisabled]}
+          onPress={takePhoto}
+          activeOpacity={0.8}
+          disabled={disabled}
+        >
+          <Text style={styles.buttonText}>Cámara</Text>
+        </TouchableOpacity>
+        <View style={styles.buttonSpacer} />
+        <TouchableOpacity
+          style={[styles.button, disabled && styles.buttonDisabled]}
+          onPress={pickFromGallery}
+          activeOpacity={0.8}
+          disabled={disabled}
+        >
+          <Text style={styles.buttonText}>Galería</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  function renderPhoto({ item, index }) {
+    return (
+      <View style={styles.photoContainer}>
+        <Image source={{ uri: item.uri }} style={styles.photo} />
+        <TouchableOpacity
+          style={styles.removeButton}
+          onPress={() => removePhoto(index)}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.removeButtonText}>X</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
+<<<<<<< HEAD
       <View style={styles.buttonRow}>
         {isWeb ? (
           <TouchableOpacity
@@ -139,29 +203,22 @@ export default function PhotoPicker({
       ) : null}
 
       {photos.length > 0 && (
+=======
+      {renderButtons()}
+      {renderErrorMessage()}
+      {photos.length > 0 ? (
+>>>>>>> 63f4ad3 (actualizacion de publicacion)
         <FlatList
           horizontal
           data={photos}
           keyExtractor={(_, index) => index.toString()}
-          renderItem={({ item, index }) => (
-            <View style={styles.photoContainer}>
-              <Image source={{ uri: item.uri }} style={styles.photo} />
-              <TouchableOpacity
-                style={styles.removeButton}
-                onPress={() => removePhoto(index)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.removeButtonText}>✕</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+          renderItem={renderPhoto}
           contentContainerStyle={styles.listContent}
           showsHorizontalScrollIndicator={false}
         />
-      )}
-
+      ) : null}
       <Text style={styles.counterText}>
-        {photos.length} de {maxPhotos} fotos
+        {`${photos.length} de ${maxPhotos} fotos`}
       </Text>
     </View>
   );

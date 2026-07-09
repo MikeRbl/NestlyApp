@@ -347,10 +347,17 @@ export default function Formulario({ onClose, user, navigation }) {
           text2: messages,
           visibilityTime: 6000,
         });
+      } else if (err.status === 413) {
+        Toast.show({
+          type: 'error',
+          text1: 'Imágenes demasiado grandes',
+          text2: 'Reduce el tamaño o la cantidad de fotos e intenta de nuevo.',
+          visibilityTime: 6000,
+        });
       } else {
         Toast.show({
           type: 'error',
-          text1: err.message || 'Ocurrió un error inesperado.',
+          text1: err.message || `Error ${err.status || ''}`.trim() || 'Ocurrió un error inesperado.',
         });
       }
     }
