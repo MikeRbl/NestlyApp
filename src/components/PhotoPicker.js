@@ -16,7 +16,7 @@ export default function PhotoPicker({
   onPhotosChange,
   error,
   touched,
-  maxPhotos = 15,
+  maxPhotos = 5,
 }) {
   const [permissionError, setPermissionError] = useState('');
   const isWeb = Platform.OS === 'web';
@@ -127,16 +127,16 @@ export default function PhotoPicker({
         )}
       </View>
 
-      {(showError || permissionError) && (
+      {(showError || permissionError) ? (
         <Text style={styles.errorText}>
           {permissionError ||
             (error === 'required' || error === 'minPhotos'
-              ? 'Debes subir al menos 5 imágenes.'
+              ? 'Debes subir al menos 1 imagen.'
               : error === 'maxPhotos'
               ? `No puedes subir más de ${maxPhotos} imágenes.`
               : error)}
         </Text>
-      )}
+      ) : null}
 
       {photos.length > 0 && (
         <FlatList

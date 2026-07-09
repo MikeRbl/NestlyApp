@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 
 const API_HOST = Platform.OS === 'android' ? '10.0.2.2' : '127.0.0.1';
 const API_URL = `http://${API_HOST}:8000/api`;
+const MEDIA_URL = BASE_URL.replace('/api', '');
 
 async function getAuthHeaders(isFormData = false) {
   const token = await AsyncStorage.getItem('token');

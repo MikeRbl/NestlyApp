@@ -230,8 +230,8 @@ export default function Formulario({ onClose, user, navigation }) {
   }
 
   const stepFields = {
-    1: ['titulo', 'descripcion', 'tipo_propiedad_id', 'precio', 'habitaciones', 'banos', 'metros_cuadrados', 'mascotas'],
-    2: ['pais', 'estado_ubicacion', 'ciudad', 'direccion', 'latitud', 'longitud'],
+    1: ['titulo', 'descripcion', 'tipo_propiedad_id', 'precio', 'habitaciones', 'banos', 'metros_cuadrados', 'mascotas', 'telefono'],
+    2: ['pais', 'estado_ubicacion', 'ciudad', 'colonia', 'direccion', 'latitud', 'longitud'], 
     3: ['fotos'],
   };
 
@@ -245,6 +245,8 @@ export default function Formulario({ onClose, user, navigation }) {
   }
 
   const onSubmit = async (formValues) => {
+    console.log('🚀 1. Entrando a onSubmit');
+    
     if (user?.role === 'inquilino') {
       Toast.show({
         type: 'error',
@@ -254,12 +256,12 @@ export default function Formulario({ onClose, user, navigation }) {
     }
 
     const fotos = formValues.fotos || [];
-    if (fotos.length < 5) {
-      Toast.show({ type: 'error', text1: 'Debes subir al menos 5 imágenes.' });
+    if (fotos.length < 1) {
+      Toast.show({ type: 'error', text1: 'Debes subir al menos 1 imagen.' });
       return;
     }
-    if (fotos.length > 15) {
-      Toast.show({ type: 'error', text1: 'No puedes subir más de 15 imágenes.' });
+    if (fotos.length > 5) {
+      Toast.show({ type: 'error', text1: 'No puedes subir más de 5 imágenes.' });
       return;
     }
 
@@ -270,13 +272,26 @@ export default function Formulario({ onClose, user, navigation }) {
     }
 
     try {
+      console.log('⏳ 2. Construyendo FormData...');
       const formData = new FormData();
 
       Object.entries(formValues).forEach(([key, value]) => {
+        // Ignoramos las fotos aquí, las procesamos más abajo
         if (key === 'fotos') return;
+        // Ignoramos valores vacíos
         if (value === null || value === undefined || value === '') return;
+        
         let finalValue = value;
-        if (typeof finalValue === 'boolean') finalValue = finalValue ? '1' : '0';
+        
+        // 🔥 BLINDAJE DEFINITIVO: Interceptamos 'mascotas' sin importar cómo llegue
+        if (key === 'mascotas') {
+          finalValue = (value === 'si' || value === true) ? '1' : '0';
+        } 
+        // 🔥 Convertimos el resto de booleanos (amueblado, anualizado)
+        else if (typeof finalValue === 'boolean') {
+          finalValue = finalValue ? '1' : '0';
+        }
+        
         formData.append(key, String(finalValue));
       });
 
@@ -284,6 +299,7 @@ export default function Formulario({ onClose, user, navigation }) {
         formData.append('email', user.email);
       }
 
+      // Procesamiento de imágenes (Web vs Móvil)
       if (Platform.OS === 'web') {
         for (const file of fotos) {
           const fileObj = await uriToFile(
@@ -303,19 +319,26 @@ export default function Formulario({ onClose, user, navigation }) {
         });
       }
 
-      await crearPropiedad(formData);
+      console.log('🌐 3. Llamando a crearPropiedad()...');
+      
+      const respuesta = await crearPropiedad(formData);
+      
+      console.log('✅ 4. Propiedad creada exitosamente en backend:', respuesta);
 
       Toast.show({
         type: 'success',
         text1: '¡Propiedad publicada correctamente!',
       });
 
+      // Limpieza y redirección
       reset();
       setCurrentStep(1);
       onClose();
       navigation?.navigate?.('Dashboard');
+      
     } catch (err) {
-      console.error('Error al publicar:', err);
+      console.error('💥 5. ERROR FATAL AL PUBLICAR:', err);
+      
       if (err.status === 422 && err.errors) {
         const messages = Object.values(err.errors).flat().join('\n');
         Toast.show({
@@ -407,24 +430,30 @@ export default function Formulario({ onClose, user, navigation }) {
           )}
         />
 
-        <Controller
+          <Controller
           control={control}
           name="tipo_propiedad_id"
           rules={{ required: 'Selecciona un tipo de propiedad.' }}
-          render={({ field: { value }, fieldState: { error } }) => (
-            <SelectModal
-              label="Tipo de Propiedad"
-              placeholder="Selecciona"
-              options={tiposDePropiedad.map((tipo) => ({
-                label: tipo.nombre,
-                value: String(tipo.id),
-              }))}
-              selectedValue={value}
-              onSelect={(selected) => setValue('tipo_propiedad_id', selected, { shouldValidate: true })}
-              error={error}
-              touched
-            />
-          )}
+          render={({ field: { value }, fieldState: { error } }) => {
+            const tiposUnicos = tiposDePropiedad.filter((tipo, index, self) =>
+              index === self.findIndex((t) => t.nombre === tipo.nombre)
+            );
+
+            return (
+              <SelectModal
+                label="Tipo de Propiedad"
+                placeholder="Selecciona"
+                options={tiposUnicos.map((tipo) => ({
+                  label: tipo.nombre,
+                  value: String(tipo.id),
+                }))}
+                selectedValue={value}
+                onSelect={(selected) => setValue('tipo_propiedad_id', selected, { shouldValidate: true })}
+                error={error}
+                touched
+              />
+            );
+          }}
         />
 
         <View style={styles.row}>
@@ -552,7 +581,7 @@ export default function Formulario({ onClose, user, navigation }) {
                 value={value}
                 onChange={onChange}
                 options={['Sí', 'No']}
-                activeValues={['si', 'no']}
+                activeValues={[true, false]}
               />
               {error && <Text style={styles.errorText}>{error.message}</Text>}
             </View>
@@ -743,17 +772,17 @@ export default function Formulario({ onClose, user, navigation }) {
       <View>
         <Text style={styles.stepTitle}>Paso 3 de 3: Fotos</Text>
         <Text style={styles.stepDescription}>
-          Sube entre 5 y 15 fotos. Puedes usar la cámara o elegir de la galería.
+          Sube entre 1 y 5 fotos. Puedes usar la cámara o elegir de la galería.
         </Text>
 
         <Controller
           control={control}
           name="fotos"
           rules={{
-            required: 'Debes subir al menos 5 imágenes.',
+            required: 'Debes subir al menos 1 imagen.',
             validate: (value) => {
-              if (value.length < 5) return 'minPhotos';
-              if (value.length > 15) return 'maxPhotos';
+              if (value.length < 1) return 'minPhotos';
+              if (value.length > 5) return 'maxPhotos';
               return true;
             },
           }}
@@ -799,18 +828,39 @@ export default function Formulario({ onClose, user, navigation }) {
         )}
 
         {isLastStep ? (
+          
           <TouchableOpacity
-            style={[styles.footerButton, styles.primaryButton]}
-            onPress={handleSubmit(onSubmit)}
-            activeOpacity={0.8}
-            disabled={isSubmitting || isLoadingTipos}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.primaryButtonText}>Publicar Propiedad</Text>
-            )}
-          </TouchableOpacity>
+  style={[styles.footerButton, styles.primaryButton]}
+  onPress={handleSubmit(
+    async (data) => { // <-- Agregamos async aquí
+      console.log('==============================');
+      console.log('🟢 BOTÓN PUBLICAR PRESIONADO');
+      console.log('Paso actual:', currentStep);
+      console.log('✅ VALIDACIÓN EXITOSA');
+      console.log('Datos del formulario:', data);
+      
+      await onSubmit(data); // <-- Este await es CLAVE
+    },
+    (errors) => {
+      console.log('❌ VALIDACIÓN FALLIDA');
+      console.log(errors);
+      Object.entries(errors).forEach(([campo, error]) => {
+        console.log(`${campo}:`, error.message);
+      });
+      alert('Hay errores en el formulario. Revisa la consola.');
+    }
+  )}
+  activeOpacity={0.8}
+  disabled={isSubmitting || isLoadingTipos}
+>
+  {isSubmitting ? (
+    <ActivityIndicator color="#FFFFFF" />
+  ) : (
+    <Text style={styles.primaryButtonText}>
+      Publicar Propiedad
+    </Text>
+  )}
+</TouchableOpacity>
         ) : (
           <TouchableOpacity
             style={[styles.footerButton, styles.primaryButton]}

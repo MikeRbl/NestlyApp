@@ -310,7 +310,7 @@ function PropertyCard({ propiedad }) {
       <View style={styles.propertyImageContainer}>
         {propiedad.fotos?.length > 0 ? (
           <Image
-            source={{ uri: `${BASE_URL}/storage/${propiedad.fotos[0]}` }}
+            source={{ uri: `${MEDIA_URL}/storage/${propiedad.fotos[0]}` }}
             style={styles.propertyImage}
           />
         ) : (

@@ -4,7 +4,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
   Alert,
   ActivityIndicator,
   ScrollView,
@@ -132,25 +131,35 @@ export default function FormularioScreen({ navigation, onClose }) {
       Alert.alert('Error', 'La contraseña debe tener al menos 8 caracteres.');
       return;
     }
+    
     setIsSaving(true);
     setErrorMessage('');
     setSuccessMessage('');
+    
     try {
       const updateData = { ...formChanges };
       if (password) {
         updateData.password = password;
         updateData.password_confirmation = passwordConfirmation;
       }
+      
       await servicePut('user', updateData);
+      
       setSuccessMessage('Perfil actualizado correctamente.');
       setUserData({ ...userData, ...formChanges });
       setFormChanges({});
       setPassword('');
       setPasswordConfirmation('');
       setTimeout(() => setSuccessMessage(''), 5000);
+      
     } catch (error) {
+      // 🔥 LOGS AÑADIDOS AQUÍ PARA DIAGNÓSTICO EXACTO
+      console.log('💥 ERROR 422 COMPLETO:', JSON.stringify(error, null, 2));
+
       if (error.status === 422) {
-        const errs = error.error?.errors;
+        const errs = error.error?.errors || error.errors;
+        console.log('❌ CAMPOS RECHAZADOS POR LARAVEL:', errs);
+        
         if (typeof errs === 'object') {
           setErrorMessage(Object.values(errs).flat().join('; '));
         }
