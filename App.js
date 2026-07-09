@@ -1,5 +1,6 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { ActivityIndicator, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { colors } from './src/theme/colors';
 import AuthNavigator from './src/navigation/AuthNavigator';
@@ -21,12 +22,14 @@ function RootNavigator() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <NavigationContainer>
-        <View style={{ flex: 1, backgroundColor: colors.inputBg }}>
-          <RootNavigator />
-        </View>
-      </NavigationContainer>
-    </AuthProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AuthProvider>
+        <NavigationContainer>
+          <View style={{ flex: 1, backgroundColor: colors.inputBg }}>
+            <RootNavigator />
+          </View>
+        </NavigationContainer>
+      </AuthProvider>
+    </GestureHandlerRootView>
   );
 }

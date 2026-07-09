@@ -2,7 +2,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import DashboardScreen from '../screens/dashboard/DashboardScreen';
 import DetalleScreen from '../screens/details/DetalleScreen';
 import PublicarPropiedadScreen from '../screens/publish/PublicarPropiedadScreen';
-import PerfilScreen from '../screens/profile/PerfilScreen';
+import PerfilScreen from '../screens/PerfilScreen';
 import { colors } from '../theme/colors';
 
 const Tab = createBottomTabNavigator();
