@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import api from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -10,9 +11,10 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const restoreSession = async () => {
       try {
-        const stored = await AsyncStorage.getItem('user');
-        if (stored) {
-          setUser(JSON.parse(stored));
+        const storedUser = await AsyncStorage.getItem('user');
+        const storedToken = await AsyncStorage.getItem('token');
+        if (storedUser && storedToken) {
+          setUser(JSON.parse(storedUser));
         }
       } catch {
         setUser(null);
@@ -23,18 +25,31 @@ export function AuthProvider({ children }) {
     restoreSession();
   }, []);
 
-  const login = async (data) => {
-    await AsyncStorage.setItem('user', JSON.stringify(data));
-    setUser(data);
+  const login = async (email, password) => {
+    const response = await api.post('/login', { email, password });
+    const { access_token, user: userData } = response.data;
+    await AsyncStorage.setItem('token', access_token);
+    await AsyncStorage.setItem('user', JSON.stringify(userData));
+    setUser(userData);
+    return response.data;
+  };
+
+  const register = async (formData) => {
+    const response = await api.post('/register', formData);
+    return response.data;
   };
 
   const logout = async () => {
-    await AsyncStorage.removeItem('user');
+    try {
+      await api.post('/logout');
+    } catch {
+    }
+    await AsyncStorage.multiRemove(['token', 'user']);
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );
