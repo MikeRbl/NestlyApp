@@ -14,9 +14,7 @@ import { AuthContext } from '../context/AuthContext';
 import { serviceGet, servicePut, servicePost } from '../services/api';
 import * as ImagePicker from 'expo-image-picker';
 
-const API_URL = 'http://127.0.0.1:8000';
-
-export default function FormularioScreen({ navigation }) {
+export default function FormularioScreen({ navigation, onClose }) {
   const { user, logout, loadUser } = useContext(AuthContext);
   const [userData, setUserData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -188,7 +186,7 @@ export default function FormularioScreen({ navigation }) {
     <ScrollView style={styles.wrapper} contentContainerStyle={styles.scrollContent}>
       <View style={styles.container}>
         <View style={styles.sidebar}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => onClose ? onClose() : navigation.goBack()}>
             <Text style={styles.backBtnText}>← Volver</Text>
           </TouchableOpacity>
 
@@ -232,7 +230,7 @@ export default function FormularioScreen({ navigation }) {
           </View>
 
           <View style={styles.navItems}>
-            <TouchableOpacity style={styles.navItem} onPress={() => navigation.goBack()}>
+            <TouchableOpacity style={styles.navItem} onPress={() => onClose ? onClose() : navigation.goBack()}>
               <Text style={styles.navItemText}>Perfil</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.navItem, styles.navItemActive]}>
@@ -314,7 +312,7 @@ export default function FormularioScreen({ navigation }) {
                   placeholder="Deja en blanco para no cambiar"
                   secureTextEntry
                 />
-                {password.length > 0 && (
+                {password ? (
                   <FormField
                     label="Confirmar Contraseña"
                     value={passwordConfirmation}
@@ -322,7 +320,7 @@ export default function FormularioScreen({ navigation }) {
                     placeholder="Repite la nueva contraseña"
                     secureTextEntry
                   />
-                )}
+                ) : null}
               </View>
 
               <TouchableOpacity

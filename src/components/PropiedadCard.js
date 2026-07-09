@@ -48,13 +48,6 @@ export default function PropiedadCard({ propiedad, onPress, esFavorito, onToggle
             <Text style={styles.price}>${propiedad?.precio}</Text>
             <Text style={styles.perMonth}>/mes</Text>
           </View>
-          <TouchableOpacity onPress={onToggleFavorito} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Ionicons
-              name={esFavorito ? 'heart' : 'heart-outline'}
-              size={22}
-              color={esFavorito ? '#FF3B30' : colors.iconDefault}
-            />
-          </TouchableOpacity>
         </View>
       </View>
     </TouchableOpacity>

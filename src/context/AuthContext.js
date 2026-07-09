@@ -45,6 +45,11 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const continueAsGuest = async () => {
+    await AsyncStorage.multiRemove(['token', 'accessToken', 'user']);
+    setUser({ role: 'guest' });
+  };
+
   const login = async (userDataOrEmail, tokenOrPassword) => {
     if (MOCK_AUTH) {
       setUser(MOCK_USER);
@@ -86,7 +91,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, loadUser, login, register, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, loadUser, login, register, logout, continueAsGuest }}>
       {children}
     </AuthContext.Provider>
   );

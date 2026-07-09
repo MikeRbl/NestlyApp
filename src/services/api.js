@@ -3,14 +3,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { MOCK_AUTH, MOCK_USER, MOCK_TOKEN } from '../config/mock';
 
-const API_HOST = Platform.OS === 'android' ? '10.0.2.2' : '127.0.0.1';
+export const BASE_URL = Platform.OS === 'android'
+  ? 'http://10.0.2.2:8000'
+  : 'http://127.0.0.1:8000';
+
+const API_URL = `${BASE_URL}/api`;
 
 const api = axios.create({
-  baseURL: `http://${API_HOST}:8000/api`,
-  headers: {
-    Accept: 'application/json',
-    'Content-Type': 'application/json',
-  },
+  baseURL: API_URL,
 });
 
 api.interceptors.request.use(async (config) => {
@@ -33,8 +33,6 @@ api.interceptors.response.use(
 
 export default api;
 
-const API_URL = `http://${API_HOST}:8000/api`;
-
 const getToken = async () => {
   return await AsyncStorage.getItem('token');
 };
@@ -43,7 +41,7 @@ const getHeaders = async (isFormData = false) => {
   const token = await getToken();
   const headers = {
     Authorization: `Bearer ${token}`,
-    Accept: 'application/json', // ✅ ADDED: Forces Laravel to return JSON errors
+    Accept: 'application/json', 
   };
   if (!isFormData) {
     headers['Content-Type'] = 'application/json';
@@ -52,7 +50,6 @@ const getHeaders = async (isFormData = false) => {
 };
 
 function mockMatch(endpoint) {
-  // ... (keep your existing mockMatch function exactly as is)
   if (MOCK_AUTH) {
     if (endpoint === 'login') return { user: MOCK_USER, access_token: MOCK_TOKEN };
     if (endpoint === 'register') return { user: MOCK_USER };

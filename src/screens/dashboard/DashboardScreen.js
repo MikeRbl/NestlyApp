@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { SafeAreaView, View, Text, StyleSheet, TouchableOpacity, ImageBackground, Image, ActivityIndicator } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import Lista from '../../components/Lista';
 import { colors } from '../../theme/colors';
@@ -8,6 +9,7 @@ import { serviceGet } from '../../services/api';
 export default function DashboardScreen({ navigation }) {
   const [favoritos, setFavoritos] = useState([]);
   const [propiedades, setPropiedades] = useState([]);
+  const [propiedadesRaw, setPropiedadesRaw] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -21,6 +23,7 @@ export default function DashboardScreen({ navigation }) {
       setError(null);
       const res = await serviceGet('propiedades');
       const lista = res?.data?.data ?? [];
+      setPropiedadesRaw(lista);
       const mapeadas = lista.map((item) => ({
         id: item.id_propiedad,
         titulo: item.titulo,
@@ -39,9 +42,11 @@ export default function DashboardScreen({ navigation }) {
     }
   }, []);
 
-  useEffect(() => {
-    cargarPropiedades();
-  }, [cargarPropiedades]);
+  useFocusEffect(
+    useCallback(() => {
+      cargarPropiedades();
+    }, [cargarPropiedades])
+  );
 
   const toggleFavorito = (id) => {
     setFavoritos((prev) => prev.includes(id) ? prev.filter((fid) => fid !== id) : [...prev, id]);
@@ -106,7 +111,10 @@ export default function DashboardScreen({ navigation }) {
         ) : (
           <Lista
             propiedades={propiedades}
-            onPropiedadPress={(propiedad) => navigation.navigate('Detalle', { propiedadId: propiedad.id })}
+            onPropiedadPress={(propiedad) => {
+              const raw = propiedadesRaw.find((p) => p.id_propiedad === propiedad.id);
+              navigation.navigate('Detalle', { propiedad: raw || propiedad });
+            }}
             headerComponent={renderHeaderContenido()}
             favoritos={favoritos}
             onToggleFavorito={toggleFavorito}

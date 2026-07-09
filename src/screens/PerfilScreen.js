@@ -9,17 +9,18 @@ import {
   Image,
   RefreshControl,
   Animated,
+  Modal,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AuthContext } from '../context/AuthContext';
-import { serviceGet, servicePost } from '../services/api';
+import { serviceGet, servicePost, BASE_URL } from '../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const API_URL = 'http://127.0.0.1:8000';
+import FormularioScreen from './FormularioScreen';
 
 export default function PerfilScreen({ navigation }) {
   const { user, logout, loadUser } = useContext(AuthContext);
   const [userData, setUserData] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [propiedades, setPropiedades] = useState([]);
   const [propiedadesMostradas, setPropiedadesMostradas] = useState([]);
@@ -126,6 +127,7 @@ export default function PerfilScreen({ navigation }) {
   }
 
   return (
+    <>
     <ScrollView
       style={styles.wrapper}
       contentContainerStyle={styles.scrollContent}
@@ -155,7 +157,7 @@ export default function PerfilScreen({ navigation }) {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.navItem}
-              onPress={() => navigation.navigate('Formulario')}
+              onPress={() => setShowEditModal(true)}
             >
               <Text style={styles.navItemText}>Editar Perfil</Text>
             </TouchableOpacity>
@@ -244,6 +246,14 @@ export default function PerfilScreen({ navigation }) {
         </View>
       </View>
     </ScrollView>
+
+    <Modal visible={showEditModal} animationType="slide">
+      <FormularioScreen
+        navigation={navigation}
+        onClose={() => setShowEditModal(false)}
+      />
+    </Modal>
+    </>
   );
 }
 
@@ -300,7 +310,7 @@ function PropertyCard({ propiedad }) {
       <View style={styles.propertyImageContainer}>
         {propiedad.fotos?.length > 0 ? (
           <Image
-            source={{ uri: `${API_URL}/storage/${propiedad.fotos[0]}` }}
+            source={{ uri: `${BASE_URL}/storage/${propiedad.fotos[0]}` }}
             style={styles.propertyImage}
           />
         ) : (

@@ -13,7 +13,6 @@ import {
   Animated,
   Image,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthContext } from '../context/AuthContext';
 
 const SLIDESHOW_IMAGES = [
@@ -24,7 +23,7 @@ const SLIDESHOW_IMAGES = [
 ];
 
 export default function LoginScreen({ navigation }) {
-  const { login } = useContext(AuthContext);
+  const { login, continueAsGuest } = useContext(AuthContext);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -98,7 +97,7 @@ export default function LoginScreen({ navigation }) {
   };
 
   const continueWithoutAccount = async () => {
-    await AsyncStorage.multiRemove(['token', 'accessToken', 'user']);
+    await continueAsGuest();
   };
 
   return (
