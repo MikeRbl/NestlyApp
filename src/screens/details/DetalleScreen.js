@@ -39,7 +39,7 @@ export default function DetalleScreen() {
           <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
       </View>
-      <Carrusel images={propiedad.fotos || []} height={280} />
+      <Carrusel images={propiedad.fotos_url || propiedad.fotos || []} height={280} />
 
       <View style={styles.content}>
         <Text style={styles.price}>
@@ -62,7 +62,7 @@ export default function DetalleScreen() {
           {renderFeature('Habitaciones', propiedad.habitaciones ?? '-')}
           {renderFeature('Baños', propiedad.banos ?? '-')}
           {renderFeature('m²', propiedad.metros_cuadrados ?? '-')}
-          {renderFeature('Mascotas', propiedad.mascotas === 'si' ? 'Sí' : 'No')}
+          {renderFeature('Mascotas', propiedad.mascotas === true || propiedad.mascotas === 'si' || propiedad.mascotas === 1 ? 'Sí' : 'No')}
           {renderFeature('Amueblado', propiedad.amueblado ? 'Sí' : 'No')}
           {renderFeature('Anual', propiedad.anualizado ? 'Sí' : 'No')}
         </View>

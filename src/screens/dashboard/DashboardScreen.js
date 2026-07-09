@@ -4,7 +4,14 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import Lista from '../../components/Lista';
 import { colors } from '../../theme/colors';
-import { serviceGet } from '../../services/api';
+import { serviceGet, BASE_URL } from '../../services/api';
+
+function buildImageUrl(foto) {
+  if (!foto) return '';
+  if (foto.startsWith('http://') || foto.startsWith('https://')) return foto;
+  const separator = foto.startsWith('/') ? '' : '/';
+  return `${BASE_URL}/storage${separator}${foto}`;
+}
 
 export default function DashboardScreen({ navigation }) {
   const [favoritos, setFavoritos] = useState([]);
@@ -32,7 +39,7 @@ export default function DashboardScreen({ navigation }) {
         habitaciones: item.habitaciones,
         banos: item.banos,
         metros: item.metros_cuadrados,
-        imagen: Array.isArray(item.fotos) && item.fotos.length > 0 ? item.fotos[0] : '',
+        imagen: Array.isArray(item.fotos) && item.fotos.length > 0 ? buildImageUrl(item.fotos[0]) : '',
       }));
       setPropiedades(mapeadas);
     } catch (e) {

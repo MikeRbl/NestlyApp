@@ -7,9 +7,17 @@ import {
   Dimensions,
   StyleSheet,
 } from 'react-native';
+import { BASE_URL } from '../services/api';
 import { colors } from '../theme/colors';
 
 const { width } = Dimensions.get('window');
+
+function normalizeImageUri(uri) {
+  if (!uri) return null;
+  if (uri.startsWith('http://') || uri.startsWith('https://')) return uri;
+  const separator = uri.startsWith('/') ? '' : '/';
+  return `${BASE_URL}/storage${separator}${uri}`;
+}
 
 export default function Carrusel({ images = [], height = 220 }) {
   const [activeIndex, setActiveIndex] = useState(0);
@@ -20,7 +28,9 @@ export default function Carrusel({ images = [], height = 220 }) {
     }
   }, []);
 
-  if (images.length === 0) {
+  const validImages = images.map(normalizeImageUri).filter(Boolean);
+
+  if (validImages.length === 0) {
     return (
       <View style={[styles.emptyContainer, { height }]}>
         <Text style={styles.emptyText}>Sin imágenes</Text>
@@ -31,7 +41,7 @@ export default function Carrusel({ images = [], height = 220 }) {
   return (
     <View style={[styles.container, { height }]}>
       <FlatList
-        data={images}
+        data={validImages}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
@@ -47,7 +57,7 @@ export default function Carrusel({ images = [], height = 220 }) {
         viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
       />
       <View style={styles.dotsContainer}>
-        {images.map((_, index) => (
+        {validImages.map((_, index) => (
           <View
             key={index}
             style={[
