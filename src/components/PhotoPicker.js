@@ -96,7 +96,7 @@ export default function PhotoPicker({
     if (!showError && !permissionError) return null;
     const message = permissionError
       || (error === 'required' || error === 'minPhotos'
-        ? 'Debes subir al menos 5 imágenes.'
+        ? 'Debes subir al menos 1 imagen.'
         : error === 'maxPhotos'
           ? `No puedes subir más de ${maxPhotos} imágenes.`
           : error);
@@ -157,57 +157,9 @@ export default function PhotoPicker({
 
   return (
     <View style={styles.container}>
-<<<<<<< HEAD
-      <View style={styles.buttonRow}>
-        {isWeb ? (
-          <TouchableOpacity
-            style={[styles.button, styles.fullWidthButton, photos.length >= maxPhotos && styles.buttonDisabled]}
-            onPress={pickFromGallery}
-            activeOpacity={0.8}
-            disabled={photos.length >= maxPhotos}
-          >
-            <Text style={styles.buttonText}>Seleccionar imágenes</Text>
-          </TouchableOpacity>
-        ) : (
-          <>
-            <TouchableOpacity
-              style={[styles.button, photos.length >= maxPhotos && styles.buttonDisabled]}
-              onPress={takePhoto}
-              activeOpacity={0.8}
-              disabled={photos.length >= maxPhotos}
-            >
-              <Text style={styles.buttonText}>Cámara</Text>
-            </TouchableOpacity>
-            <View style={styles.buttonSpacer} />
-            <TouchableOpacity
-              style={[styles.button, photos.length >= maxPhotos && styles.buttonDisabled]}
-              onPress={pickFromGallery}
-              activeOpacity={0.8}
-              disabled={photos.length >= maxPhotos}
-            >
-              <Text style={styles.buttonText}>Galería</Text>
-            </TouchableOpacity>
-          </>
-        )}
-      </View>
-
-      {(showError || permissionError) ? (
-        <Text style={styles.errorText}>
-          {permissionError ||
-            (error === 'required' || error === 'minPhotos'
-              ? 'Debes subir al menos 1 imagen.'
-              : error === 'maxPhotos'
-              ? `No puedes subir más de ${maxPhotos} imágenes.`
-              : error)}
-        </Text>
-      ) : null}
-
-      {photos.length > 0 && (
-=======
       {renderButtons()}
       {renderErrorMessage()}
       {photos.length > 0 ? (
->>>>>>> 63f4ad3 (actualizacion de publicacion)
         <FlatList
           horizontal
           data={photos}

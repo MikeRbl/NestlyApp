@@ -587,11 +587,6 @@ export default function Formulario({ onClose, user, navigation }) {
                 label="Mascotas"
                 value={value}
                 onChange={onChange}
-<<<<<<< HEAD
-                options={['Sí', 'No']}
-                activeValues={[true, false]}
-=======
->>>>>>> f8d8589 (correccion de carrucel y vista previa)
               />
               {error && <Text style={styles.errorText}>{error.message}</Text>}
             </View>
