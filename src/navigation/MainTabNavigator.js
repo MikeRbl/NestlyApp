@@ -32,3 +32,5 @@ export default function MainTabNavigator() {
     </Tab.Navigator>
   );
 }
+
+//correcion en maintabnavigator
