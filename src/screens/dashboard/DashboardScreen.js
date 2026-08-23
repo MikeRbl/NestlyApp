@@ -6,6 +6,8 @@ import Lista from '../../components/Lista';
 import { colors } from '../../theme/colors';
 import { serviceGet, BASE_URL } from '../../services/api';
 
+const PROPIEDADES_DESTACADAS_LIMITE = 4;
+
 function buildImageUrl(foto) {
   if (!foto) return '';
   if (foto.startsWith('http://') || foto.startsWith('https://')) return foto;
@@ -41,7 +43,7 @@ export default function DashboardScreen({ navigation }) {
         metros: item.metros_cuadrados,
         imagen: Array.isArray(item.fotos) && item.fotos.length > 0 ? buildImageUrl(item.fotos[0]) : '',
       }));
-      setPropiedades(mapeadas);
+      setPropiedades(mapeadas.slice(0, PROPIEDADES_DESTACADAS_LIMITE));
     } catch (e) {
       setError(e.message || 'Error al cargar propiedades');
     } finally {
