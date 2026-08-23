@@ -39,6 +39,7 @@ export default function PhotoPicker({
       uri: asset.uri,
       fileName: asset.fileName || asset.uri.split('/').pop(),
       type: asset.type || 'image/jpeg',
+      fileSize: asset.fileSize,
       width: asset.width,
       height: asset.height,
     }));

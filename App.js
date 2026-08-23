@@ -1,4 +1,5 @@
 import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ActivityIndicator, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Toast from 'react-native-toast-message';
@@ -6,6 +7,9 @@ import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { colors } from './src/theme/colors';
 import AuthNavigator from './src/navigation/AuthNavigator';
 import MainTabNavigator from './src/navigation/MainTabNavigator';
+import DetalleScreen from './src/screens/details/DetalleScreen';
+
+const RootStack = createNativeStackNavigator();
 
 function RootNavigator() {
   const { user, isLoading } = useAuth();
@@ -18,7 +22,16 @@ function RootNavigator() {
     );
   }
 
-  return user ? <MainTabNavigator /> : <AuthNavigator />;
+  if (!user) {
+    return <AuthNavigator />;
+  }
+
+  return (
+    <RootStack.Navigator screenOptions={{ headerShown: false }}>
+      <RootStack.Screen name="MainTabs" component={MainTabNavigator} />
+      <RootStack.Screen name="Detalle" component={DetalleScreen} />
+    </RootStack.Navigator>
+  );
 }
 
 export default function App() {

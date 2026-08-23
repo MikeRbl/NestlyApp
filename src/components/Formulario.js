@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,18 +9,22 @@ import {
   SafeAreaView,
   StyleSheet,
   Platform,
+  Image,
 } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import * as Location from 'expo-location';
 import Toast from 'react-native-toast-message';
 import { colors } from '../theme/colors';
-import { crearPropiedad, getTiposDePropiedad } from '../services/api';
+import { crearPropiedad, actualizarPropiedad, getTiposDePropiedad, MEDIA_URL } from '../services/api';
 import ToggleSwitch from './ToggleSwitch';
 import SelectModal from './SelectModal';
 import PhotoPicker from './PhotoPicker';
 
 const TOTAL_STEPS = 3;
 const GEOCODE_DEBOUNCE_MS = 700;
+// Límite del backend: 2048 KB por imagen. Dejamos margen de seguridad.
+const MAX_FOTO_BYTES = 1.9 * 1024 * 1024;
+const INT_FIELDS = ['habitaciones', 'banos', 'metros_cuadrados'];
 
 const ESTADOS_MEXICO = [
   'Aguascalientes',
@@ -67,11 +71,52 @@ function FormInput({ label, error, children }) {
   );
 }
 
-export default function Formulario({ onClose, user, navigation }) {
+function fotoUrl(path) {
+  if (!path) return '';
+  if (/^https?:\/\//i.test(path)) return path;
+  const separator = path.startsWith('/') ? '' : '/';
+  return `${MEDIA_URL}/storage${separator}${path}`;
+}
+
+export default function Formulario({ onClose, user, navigation, initialData, onSuccess }) {
+  const isEdit = !!initialData;
   const [currentStep, setCurrentStep] = useState(1);
   const [tiposDePropiedad, setTiposDePropiedad] = useState([]);
   const [isLoadingTipos, setIsLoadingTipos] = useState(true);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
+
+  const initialValues = useMemo(() => ({
+    titulo: initialData?.titulo || '',
+    descripcion: initialData?.descripcion || '',
+    direccion: initialData?.direccion || '',
+    pais: initialData?.pais || 'México',
+    estado_ubicacion: initialData?.estado_ubicacion || '',
+    ciudad: initialData?.ciudad || '',
+    colonia: initialData?.colonia || '',
+    precio: initialData?.precio != null ? String(initialData.precio) : '',
+    habitaciones: initialData?.habitaciones != null ? String(initialData.habitaciones) : '',
+    banos: initialData?.banos != null ? String(initialData.banos) : '',
+    metros_cuadrados: initialData?.metros_cuadrados != null ? String(initialData.metros_cuadrados) : '',
+    deposito: initialData?.deposito != null && Number(initialData.deposito) > 0 ? String(initialData.deposito) : '',
+    amueblado: !!initialData?.amueblado,
+    anualizado: !!initialData?.anualizado,
+    mascotas: initialData
+      ? !!(initialData.mascotas === true || initialData.mascotas === 'si' || Number(initialData.mascotas) === 1)
+      : '',
+    tipo_propiedad_id: initialData?.tipo_propiedad_id != null ? String(initialData.tipo_propiedad_id) : '',
+    fotos: [],
+    telefono: initialData?.telefono || '',
+  }), [initialData]);
+
+  const [existingFotos, setExistingFotos] = useState(
+    Array.isArray(initialData?.fotos)
+      ? initialData.fotos.filter((f) => typeof f === 'string')
+      : []
+  );
+
+  const removeExistingFoto = (path) => {
+    setExistingFotos((prev) => prev.filter((p) => p !== path));
+  };
 
   const {
     control,
@@ -82,28 +127,7 @@ export default function Formulario({ onClose, user, navigation }) {
     formState: { errors, isSubmitting },
     reset,
   } = useForm({
-    defaultValues: {
-      titulo: '',
-      descripcion: '',
-      direccion: '',
-      pais: 'México',
-      estado_ubicacion: '',
-      ciudad: '',
-      colonia: '',
-      latitud: '',
-      longitud: '',
-      precio: '',
-      habitaciones: '',
-      banos: '',
-      metros_cuadrados: '',
-      deposito: '',
-      amueblado: false,
-      anualizado: false,
-      mascotas: '',
-      tipo_propiedad_id: '',
-      fotos: [],
-      telefono: '',
-    },
+    defaultValues: initialValues,
   });
 
   const watchedFields = watch(['direccion', 'colonia', 'ciudad', 'estado_ubicacion', 'pais']);
@@ -169,8 +193,6 @@ export default function Formulario({ onClose, user, navigation }) {
       if (data && data.length > 0) {
         const lat = parseFloat(data[0].lat);
         const lon = parseFloat(data[0].lon);
-        setValue('latitud', String(lat), { shouldValidate: false });
-        setValue('longitud', String(lon), { shouldValidate: false });
         await geocodeLatLng(lat, lon);
       } else {
         Toast.show({
@@ -188,6 +210,8 @@ export default function Formulario({ onClose, user, navigation }) {
   }, [setValue, geocodeLatLng]);
 
   useEffect(() => {
+    if (isEdit) return;
+
     const [direccion, colonia, ciudad, estado_ubicacion, pais] = watchedFields;
     const fullAddressQuery = [direccion, colonia, ciudad, estado_ubicacion, pais]
       .filter((part) => part && part.trim() !== '')
@@ -200,7 +224,7 @@ export default function Formulario({ onClose, user, navigation }) {
     }, GEOCODE_DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
-  }, [watchedFields, geocodeAddress]);
+  }, [watchedFields, geocodeAddress, isEdit]);
 
   async function useCurrentLocation() {
     setIsGettingLocation(true);
@@ -215,8 +239,6 @@ export default function Formulario({ onClose, user, navigation }) {
       }
       const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       const { latitude, longitude } = location.coords;
-      setValue('latitud', String(latitude), { shouldValidate: true });
-      setValue('longitud', String(longitude), { shouldValidate: true });
       await geocodeLatLng(latitude, longitude);
     } catch (error) {
       console.error('Error obteniendo ubicación:', error);
@@ -231,7 +253,7 @@ export default function Formulario({ onClose, user, navigation }) {
 
   const stepFields = {
     1: ['titulo', 'descripcion', 'tipo_propiedad_id', 'precio', 'habitaciones', 'banos', 'metros_cuadrados', 'mascotas', 'telefono'],
-    2: ['pais', 'estado_ubicacion', 'ciudad', 'colonia', 'direccion', 'latitud', 'longitud'], 
+    2: ['pais', 'estado_ubicacion', 'ciudad', 'colonia', 'direccion'],
     3: ['fotos'],
   };
 
@@ -246,22 +268,26 @@ export default function Formulario({ onClose, user, navigation }) {
 
   const onSubmit = async (formValues) => {
     console.log('🚀 1. Entrando a onSubmit');
-    
-    if (user?.role === 'inquilino') {
-      Toast.show({
-        type: 'error',
-        text1: 'Los inquilinos no pueden publicar propiedades.',
-      });
-      return;
-    }
 
-    const fotos = formValues.fotos || [];
-    if (fotos.length < 1) {
+    const fotosNuevas = formValues.fotos || [];
+    const totalFotos = (isEdit ? existingFotos.length : 0) + fotosNuevas.length;
+    if (totalFotos < 1) {
       Toast.show({ type: 'error', text1: 'Debes subir al menos 1 imagen.' });
       return;
     }
-    if (fotos.length > 5) {
+    if (totalFotos > 5) {
       Toast.show({ type: 'error', text1: 'No puedes subir más de 5 imágenes.' });
+      return;
+    }
+
+    const oversized = fotosNuevas.filter((f) => f.fileSize && f.fileSize > MAX_FOTO_BYTES);
+    if (oversized.length > 0) {
+      Toast.show({
+        type: 'error',
+        text1: 'Imágenes demasiado grandes',
+        text2: `${oversized.map((f) => f.fileName).join(', ')} supera el límite de 2MB por foto. Elige otra o reduce su tamaño.`,
+        visibilityTime: 6000,
+      });
       return;
     }
 
@@ -291,6 +317,13 @@ export default function Formulario({ onClose, user, navigation }) {
         else if (typeof finalValue === 'boolean') {
           finalValue = finalValue ? '1' : '0';
         }
+
+        if (INT_FIELDS.includes(key)) {
+          const parsed = Math.round(parseFloat(finalValue));
+          if (Number.isNaN(parsed)) return;
+          formData.append(key, String(parsed));
+          return;
+        }
         
         formData.append(key, String(finalValue));
       });
@@ -299,18 +332,25 @@ export default function Formulario({ onClose, user, navigation }) {
         formData.append('email', user.email);
       }
 
-      // Procesamiento de imágenes (Web vs Móvil)
+      if (isEdit) {
+        formData.append('existing_fotos', JSON.stringify(existingFotos));
+      }
+
+      // Procesamiento de imágenes nuevas (Web vs Móvil)
       if (Platform.OS === 'web') {
-        for (const file of fotos) {
+        for (const file of fotosNuevas) {
           const fileObj = await uriToFile(
             file.uri,
             file.fileName || file.uri.split('/').pop(),
             file.type || 'image/jpeg'
           );
+          if (fileObj.size > MAX_FOTO_BYTES) {
+            throw new Error(`La imagen "${fileObj.name}" supera el límite de 2MB. Elige otra o reduce su tamaño.`);
+          }
           formData.append('fotos[]', fileObj);
         }
       } else {
-        fotos.forEach((file) => {
+        fotosNuevas.forEach((file) => {
           formData.append('fotos[]', {
             uri: file.uri,
             type: file.type || 'image/jpeg',
@@ -320,21 +360,28 @@ export default function Formulario({ onClose, user, navigation }) {
       }
 
       console.log('🌐 3. Llamando a crearPropiedad()...');
-      
-      const respuesta = await crearPropiedad(formData);
-      
-      console.log('✅ 4. Propiedad creada exitosamente en backend:', respuesta);
+
+      const respuesta = isEdit
+        ? await actualizarPropiedad(initialData.id ?? initialData.id_propiedad, formData)
+        : await crearPropiedad(formData);
+
+      console.log('✅ 4. Operación exitosa en backend:', respuesta);
 
       Toast.show({
         type: 'success',
-        text1: '¡Propiedad publicada correctamente!',
+        text1: isEdit ? '¡Propiedad actualizada correctamente!' : '¡Propiedad publicada correctamente!',
       });
 
+      onSuccess?.();
+
       // Limpieza y redirección
-      reset();
+      reset(isEdit ? initialValues : undefined);
       setCurrentStep(1);
-      onClose();
-      navigation?.navigate?.('Dashboard');
+      if (onClose) {
+        onClose();
+      } else if (navigation?.navigate) {
+        navigation.navigate('Explorar');
+      }
       
     } catch (err) {
       console.error('💥 5. ERROR FATAL AL PUBLICAR:', err);
@@ -366,7 +413,7 @@ export default function Formulario({ onClose, user, navigation }) {
   function renderHeader() {
     return (
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Publicar Propiedad</Text>
+        <Text style={styles.headerTitle}>{isEdit ? 'Editar Propiedad' : 'Publicar Propiedad'}</Text>
         <TouchableOpacity onPress={onClose} activeOpacity={0.8}>
           <Text style={styles.closeButton}>✕</Text>
         </TouchableOpacity>
@@ -725,49 +772,6 @@ export default function Formulario({ onClose, user, navigation }) {
             <Text style={styles.locationButtonText}>Usar mi ubicación actual</Text>
           )}
         </TouchableOpacity>
-
-        <View style={styles.row}>
-          <View style={styles.half}>
-            <Controller
-              control={control}
-              name="latitud"
-              rules={{ required: 'Requerido.' }}
-              render={({ field: { onChange, onBlur, value }, fieldState: { error } }) => (
-                <FormInput label="Latitud" error={error}>
-                  <TextInput
-                    style={[styles.input, error && styles.inputError]}
-                    value={value}
-                    onChangeText={onChange}
-                    onBlur={onBlur}
-                    placeholder="0.0000"
-                    placeholderTextColor={colors.textSecondary}
-                    keyboardType="numeric"
-                  />
-                </FormInput>
-              )}
-            />
-          </View>
-          <View style={styles.half}>
-            <Controller
-              control={control}
-              name="longitud"
-              rules={{ required: 'Requerido.' }}
-              render={({ field: { onChange, onBlur, value }, fieldState: { error } }) => (
-                <FormInput label="Longitud" error={error}>
-                  <TextInput
-                    style={[styles.input, error && styles.inputError]}
-                    value={value}
-                    onChangeText={onChange}
-                    onBlur={onBlur}
-                    placeholder="0.0000"
-                    placeholderTextColor={colors.textSecondary}
-                    keyboardType="numeric"
-                  />
-                </FormInput>
-              )}
-            />
-          </View>
-        </View>
       </View>
     );
   }
@@ -784,20 +788,45 @@ export default function Formulario({ onClose, user, navigation }) {
           control={control}
           name="fotos"
           rules={{
-            required: 'Debes subir al menos 1 imagen.',
             validate: (value) => {
-              if (value.length < 1) return 'minPhotos';
-              if (value.length > 5) return 'maxPhotos';
+              const total = (isEdit ? existingFotos.length : 0) + (value?.length || 0);
+              if (total < 1) return 'Debes subir al menos 1 imagen.';
+              if (total > 5) return 'No puedes subir más de 5 imágenes.';
               return true;
             },
           }}
           render={({ field: { value, onChange }, fieldState: { error } }) => (
-            <PhotoPicker
-              photos={value || []}
-              onPhotosChange={onChange}
-              error={error?.message}
-              touched
-            />
+            <>
+              {isEdit && existingFotos.length > 0 && (
+                <View style={styles.existingFotosRow}>
+                  {existingFotos.map((path) => (
+                    <View key={path} style={styles.existingThumbContainer}>
+                      <Image source={{ uri: fotoUrl(path) }} style={styles.existingThumb} />
+                      <TouchableOpacity
+                        style={styles.removeExistingBtn}
+                        onPress={() => removeExistingFoto(path)}
+                      >
+                        <Text style={styles.removeExistingBtnText}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
+              {isEdit && existingFotos.length > 0 && (
+                <Text style={styles.existingHint}>
+                  Toca ✕ para quitar una foto que ya no quieras conservar.
+                </Text>
+              )}
+              {5 - existingFotos.length > 0 && (
+                <PhotoPicker
+                  photos={value || []}
+                  onPhotosChange={onChange}
+                  error={error?.message}
+                  touched
+                  maxPhotos={5 - existingFotos.length}
+                />
+              )}
+            </>
           )}
         />
       </View>
@@ -977,6 +1006,43 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     marginBottom: 16,
+  },
+  existingFotosRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 12,
+  },
+  existingThumbContainer: {
+    width: 90,
+    height: 90,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  existingThumb: {
+    width: '100%',
+    height: '100%',
+  },
+  removeExistingBtn: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  removeExistingBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  existingHint: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: 10,
   },
   inputGroup: {
     marginBottom: 14,

@@ -92,7 +92,7 @@ export default function PerfilScreen({ navigation }) {
   };
 
   const transformPropiedad = (prop) => ({
-    id: prop.id,
+    id: prop.id_propiedad ?? prop.id,
     titulo: prop.titulo,
     imagen: prop.fotos?.[0] ? `${MEDIA_URL}/storage/${prop.fotos[0]}` : '',
     ubicacion: prop.direccion,
@@ -317,7 +317,10 @@ export default function PerfilScreen({ navigation }) {
                 <View style={styles.emptyState}>
                   <Text style={styles.emptyTitle}>No has publicado propiedades aún</Text>
                   <Text style={styles.emptyDesc}>Publica tu primera propiedad para comenzar.</Text>
-                  <TouchableOpacity style={styles.publishBtn}>
+                  <TouchableOpacity
+                    style={styles.publishBtn}
+                    onPress={() => navigation.navigate('Publicar')}
+                  >
                     <Text style={styles.publishBtnText}>Publicar</Text>
                   </TouchableOpacity>
                 </View>
@@ -329,6 +332,7 @@ export default function PerfilScreen({ navigation }) {
                       propiedad={prop}
                       esFavorito={favoritosIds.includes(prop.id)}
                       onToggleFavorito={() => toggleFavorito(prop.id)}
+                      onPress={() => navigation.navigate('Detalle', { propiedad: prop })}
                     />
                   ))}
                 </View>
@@ -364,6 +368,7 @@ export default function PerfilScreen({ navigation }) {
                       propiedad={prop}
                       esFavorito={favoritosIds.includes(prop.id)}
                       onToggleFavorito={() => toggleFavorito(prop.id)}
+                      onPress={() => navigation.navigate('Detalle', { propiedad: prop })}
                     />
                   ))}
                 </View>

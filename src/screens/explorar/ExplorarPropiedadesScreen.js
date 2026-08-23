@@ -70,6 +70,7 @@ export default function ExplorarPropiedadesScreen({ navigation }) {
       const lista = res?.data?.data ?? [];
       const mapeadas = lista.map((item) => ({
         id: item.id_propiedad,
+        id_propietario: item.id_propietario,
         titulo: item.titulo,
         ubicacion: `${item.colonia}, ${item.ciudad}`,
         direccion: item.direccion,
