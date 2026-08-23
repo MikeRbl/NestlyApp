@@ -15,6 +15,7 @@ import {
   Image,
 } from 'react-native';
 import { publicPost } from '../services/api';
+import Toast from 'react-native-toast-message';
 
 const SLIDESHOW_IMAGES = [
   require('../../assets/login/casa1.jpg'),
@@ -36,6 +37,7 @@ export default function RegistroScreen({ navigation }) {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [noMaterno, setNoMaterno] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [showTerminos, setShowTerminos] = useState(false);
@@ -78,7 +80,7 @@ export default function RegistroScreen({ navigation }) {
     const newErrors = {};
     if (!form.first_name) newErrors.first_name = 'El nombre es requerido';
     if (!form.last_name_paternal) newErrors.last_name_paternal = 'El apellido paterno es requerido';
-    if (!form.last_name_maternal) newErrors.last_name_maternal = 'El apellido materno es requerido';
+    if (!form.last_name_maternal && !noMaterno) newErrors.last_name_maternal = 'El apellido materno es requerido';
     if (!form.email) newErrors.email = 'El correo es requerido';
     else if (!/\S+@\S+\.\S+/.test(form.email)) newErrors.email = 'El formato del correo no es válido';
     if (!form.phone) newErrors.phone = 'El teléfono es requerido';
@@ -99,9 +101,12 @@ export default function RegistroScreen({ navigation }) {
     setLoading(true);
     try {
       await publicPost('register', form);
-      Alert.alert('¡Registro exitoso!', 'Serás redirigido para iniciar sesión.', [
-        { text: 'OK', onPress: () => navigation.navigate('Login') },
-      ]);
+      Toast.show({
+        type: 'success',
+        text1: '¡Registro exitoso!',
+        text2: 'Serás redirigido para iniciar sesión.',
+      });
+      navigation.navigate('Login');
     } catch (error) {
       if (error.status === 422 && error.error && error.error.errors) {
     console.log("Errores de validación de Laravel:", JSON.stringify(error.error.errors, null, 2));
@@ -181,14 +186,32 @@ export default function RegistroScreen({ navigation }) {
                   <Text style={styles.iconText}>👤</Text>
                 </View>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, noMaterno && styles.inputDisabled]}
                   placeholder="Apellido Materno"
                   placeholderTextColor="#999"
                   value={form.last_name_maternal}
                   onChangeText={(v) => handleChange('last_name_maternal', v)}
+                  editable={!noMaterno}
                 />
               </View>
               {errors.last_name_maternal && <Text style={styles.errorText}>{errors.last_name_maternal}</Text>}
+              <TouchableOpacity
+                style={styles.terminosRow}
+                onPress={() => {
+                  const next = !noMaterno;
+                  setNoMaterno(next);
+                  handleChange('last_name_maternal', next ? 'NA' : '');
+                }}
+              >
+                <View style={[styles.checkbox, noMaterno && styles.checkboxChecked]}>
+                  {noMaterno && (
+                    <Text style={styles.checkmark}>✓</Text>
+                  )}
+                </View>
+                <Text style={styles.terminosText}>
+                  No tengo apellido materno
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -437,6 +460,10 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     fontSize: 14,
     color: '#333',
+  },
+  inputDisabled: {
+    backgroundColor: '#f0f0f0',
+    color: '#999',
   },
   passwordToggle: {
     position: 'absolute',
