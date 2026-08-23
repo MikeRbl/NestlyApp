@@ -5,7 +5,6 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
   ScrollView,
   Image,
   RefreshControl,
@@ -22,11 +21,10 @@ import PropiedadCard from '../components/PropiedadCard';
 import { useAuth } from '../context/AuthContext';
 
 export default function PerfilScreen({ navigation }) {
-  const { user, logout, loadUser } = useContext(AuthContext);
+  const { user, logout, refreshUser, isGuest, exitGuestMode } = useContext(AuthContext);
   const { favoritosIds, toggleFavorito, loadFavoritos } = useAuth();
-  const [userData, setUserData] = useState(null);
+  const userData = user;
   const [showEditModal, setShowEditModal] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [propiedades, setPropiedades] = useState([]);
   const [propiedadesMostradas, setPropiedadesMostradas] = useState([]);
   const [loadingPropiedades, setLoadingPropiedades] = useState(false);
@@ -37,7 +35,6 @@ export default function PerfilScreen({ navigation }) {
   const [loadingFavoritos, setLoadingFavoritos] = useState(false);
 
   useEffect(() => {
-    fetchUserData();
     checkSolicitud();
   }, []);
 
@@ -50,25 +47,15 @@ export default function PerfilScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       loadFavoritos();
-    }, [loadFavoritos])
+      if (!isGuest && userData?.id) {
+        fetchPropiedades(userData.id);
+      }
+    }, [loadFavoritos, isGuest, userData?.id])
   );
 
   const checkSolicitud = async () => {
     const sent = await AsyncStorage.getItem('roleRequestSent');
     if (sent === 'true') setSolicitudEnviada(true);
-  };
-
-  const fetchUserData = async () => {
-    setIsLoading(true);
-    try {
-      const response = await serviceGet('user');
-      setUserData(response.user);
-      fetchPropiedades(response.user?.id);
-    } catch (err) {
-      console.error('Error al cargar datos del usuario:', err);
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   const fetchPropiedades = async (userId) => {
@@ -134,12 +121,18 @@ export default function PerfilScreen({ navigation }) {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchUserData();
-    if (activeTab === 'favoritos') {
-      await fetchFavoritos();
+    try {
+      await refreshUser();
+      if (userData?.id) {
+        await fetchPropiedades(userData.id);
+      }
+      if (activeTab === 'favoritos') {
+        await fetchFavoritos();
+      }
+    } finally {
+      setRefreshing(false);
     }
-    setRefreshing(false);
-  }, [activeTab]);
+  }, [activeTab, refreshUser, userData?.id]);
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
@@ -173,11 +166,34 @@ export default function PerfilScreen({ navigation }) {
     return date.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' });
   };
 
-  if (isLoading && !userData) {
+  if (isGuest) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4361ee" />
-        <Text style={styles.loadingText}>Cargando datos del usuario...</Text>
+      <View style={styles.guestContainer}>
+        <View style={styles.guestCard}>
+          <View style={styles.avatarCircle}>
+            <Text style={styles.avatarIcon}>👤</Text>
+          </View>
+          <Text style={styles.guestTitle}>Hola, Invitado</Text>
+          <View style={styles.roleBadge}>
+            <Text style={styles.roleBadgeText}>Invitado</Text>
+          </View>
+          <Text style={styles.guestDesc}>
+            Estás navegando sin una cuenta. Inicia sesión para guardar favoritos,
+            publicar propiedades y personalizar tu perfil.
+          </Text>
+          <TouchableOpacity
+            style={styles.guestPrimaryBtn}
+            onPress={() => exitGuestMode('login')}
+          >
+            <Text style={styles.guestPrimaryBtnText}>Iniciar Sesión</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.guestSecondaryBtn}
+            onPress={() => exitGuestMode('register')}
+          >
+            <Text style={styles.guestSecondaryBtnText}>Crear Cuenta</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -658,4 +674,57 @@ const styles = StyleSheet.create({
   ownerName: { fontSize: 12, fontWeight: '600', color: '#2b2d42' },
   ownerLabel: { fontSize: 10, color: '#8d99ae' },
   propertyPrice: { fontSize: 16, fontWeight: '700', color: '#4361ee' },
+
+  guestContainer: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  guestCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 32,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  guestTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#2b2d42',
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  guestDesc: {
+    color: '#8d99ae',
+    fontSize: 14,
+    lineHeight: 21,
+    textAlign: 'center',
+    marginTop: 16,
+    marginBottom: 24,
+  },
+  guestPrimaryBtn: {
+    backgroundColor: '#4361ee',
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 10,
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  guestPrimaryBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  guestSecondaryBtn: {
+    borderWidth: 1,
+    borderColor: '#4361ee',
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 10,
+    width: '100%',
+    alignItems: 'center',
+  },
+  guestSecondaryBtnText: { color: '#4361ee', fontSize: 15, fontWeight: '600' },
 });

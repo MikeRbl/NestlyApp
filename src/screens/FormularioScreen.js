@@ -15,7 +15,7 @@ import { serviceGet, servicePut, servicePost } from '../services/api';
 import * as ImagePicker from 'expo-image-picker';
 
 export default function FormularioScreen({ navigation, onClose }) {
-  const { user, logout, loadUser } = useContext(AuthContext);
+  const { user, logout, updateUser } = useContext(AuthContext);
   const [userData, setUserData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -93,11 +93,10 @@ export default function FormularioScreen({ navigation, onClose }) {
         name: selectedFile.fileName || 'avatar.jpg',
       });
       const response = await servicePost('user/avatar', formData);
-      if (userData && response.avatar_url) {
-        setUserData({
-          ...userData,
-          profile_picture: `${response.avatar_url}?${new Date().getTime()}`,
-        });
+      if (response.avatar_url) {
+        const freshUrl = `${response.avatar_url}?${new Date().getTime()}`;
+        setUserData((prev) => prev ? { ...prev, profile_picture: freshUrl } : prev);
+        await updateUser({ avatar_url: response.avatar_url, profile_picture: response.avatar_url });
       }
       setSelectedImage(null);
       setSelectedFile(null);
@@ -145,14 +144,17 @@ export default function FormularioScreen({ navigation, onClose }) {
       }
       
       await servicePut('user', updateData);
-      
-      setSuccessMessage('Perfil actualizado correctamente.');
-      setUserData({ ...userData, ...formChanges });
+
+      const { password: _pwd, password_confirmation: _pwdConf, ...userUpdates } = formChanges;
+      await updateUser(userUpdates);
       setFormChanges({});
       setPassword('');
       setPasswordConfirmation('');
-      setTimeout(() => setSuccessMessage(''), 5000);
-      
+      setSuccessMessage('Perfil actualizado correctamente.');
+      setTimeout(() => {
+        onClose ? onClose() : navigation?.goBack();
+      }, 900);
+
     } catch (error) {
       // 🔥 LOGS AÑADIDOS AQUÍ PARA DIAGNÓSTICO EXACTO
       console.log('💥 ERROR 422 COMPLETO:', JSON.stringify(error, null, 2));
