@@ -9,10 +9,12 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../theme/colors';
 import Carrusel from '../../components/Carrusel';
+import { useAuth } from '../../context/AuthContext';
 
 export default function DetalleScreen() {
   const route = useRoute();
   const navigation = useNavigation();
+  const { favoritosIds, toggleFavorito } = useAuth();
   const propiedad = route.params?.propiedad;
 
   if (!propiedad) {
@@ -22,6 +24,8 @@ export default function DetalleScreen() {
       </View>
     );
   }
+
+  const esFavorito = favoritosIds.includes(propiedad.id);
 
   function renderFeature(label, value) {
     return (
@@ -37,6 +41,9 @@ export default function DetalleScreen() {
       <View style={styles.backHeader}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton} activeOpacity={0.7}>
           <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => toggleFavorito(propiedad.id)} style={styles.favoriteButton} activeOpacity={0.7}>
+          <Ionicons name={esFavorito ? 'heart' : 'heart-outline'} size={28} color={esFavorito ? '#FF3B30' : colors.textPrimary} />
         </TouchableOpacity>
       </View>
       <Carrusel images={propiedad.fotos_url || propiedad.fotos || []} height={280} />
@@ -192,8 +199,24 @@ const styles = StyleSheet.create({
     paddingTop: 50,
     paddingHorizontal: 16,
     paddingBottom: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  favoriteButton: {
     width: 40,
     height: 40,
     borderRadius: 20,

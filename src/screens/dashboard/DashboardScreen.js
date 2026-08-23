@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Lista from '../../components/Lista';
 import { colors } from '../../theme/colors';
 import { serviceGet, BASE_URL } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 
 const PROPIEDADES_DESTACADAS_LIMITE = 4;
 
@@ -16,7 +17,7 @@ function buildImageUrl(foto) {
 }
 
 export default function DashboardScreen({ navigation }) {
-  const [favoritos, setFavoritos] = useState([]);
+  const { favoritosIds, toggleFavorito, loadFavoritos } = useAuth();
   const [propiedades, setPropiedades] = useState([]);
   const [propiedadesRaw, setPropiedadesRaw] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -54,12 +55,9 @@ export default function DashboardScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       cargarPropiedades();
+      loadFavoritos();
     }, [cargarPropiedades])
   );
-
-  const toggleFavorito = (id) => {
-    setFavoritos((prev) => prev.includes(id) ? prev.filter((fid) => fid !== id) : [...prev, id]);
-  };
 
   const renderHeaderContenido = () => (
     <View style={styles.headerScrollableContent}>
@@ -71,7 +69,7 @@ export default function DashboardScreen({ navigation }) {
         <View style={styles.heroOverlay}>
           <Text style={styles.heroTitle}>Encuentra tu hogar temporal perfecto</Text>
           <Text style={styles.heroSubtitle}>Rentas Mensuales con todas las comodidades</Text>
-          <TouchableOpacity style={styles.heroButton} activeOpacity={0.85}>
+          <TouchableOpacity style={styles.heroButton} activeOpacity={0.85} onPress={() => navigation.navigate('ExplorarPropiedades')}>
             <Text style={styles.heroButtonText}>Explorar propiedades</Text>
           </TouchableOpacity>
         </View>
@@ -125,7 +123,7 @@ export default function DashboardScreen({ navigation }) {
               navigation.navigate('Detalle', { propiedad: raw || propiedad });
             }}
             headerComponent={renderHeaderContenido()}
-            favoritos={favoritos}
+            favoritos={favoritosIds}
             onToggleFavorito={toggleFavorito}
           />
         )}

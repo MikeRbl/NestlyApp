@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import DashboardScreen from '../screens/dashboard/DashboardScreen';
 import DetalleScreen from '../screens/details/DetalleScreen';
 import PerfilScreen from '../screens/PerfilScreen';
+import ExplorarPropiedadesScreen from '../screens/explorar/ExplorarPropiedadesScreen';
 import { colors } from '../theme/colors';
 
 const Tab = createBottomTabNavigator();
@@ -13,6 +14,7 @@ function DashboardStackNavigator() {
     <DashboardStack.Navigator screenOptions={{ headerShown: false }}>
       <DashboardStack.Screen name="DashboardHome" component={DashboardScreen} />
       <DashboardStack.Screen name="Detalle" component={DetalleScreen} />
+      <DashboardStack.Screen name="ExplorarPropiedades" component={ExplorarPropiedadesScreen} />
     </DashboardStack.Navigator>
   );
 }

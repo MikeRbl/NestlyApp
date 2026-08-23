@@ -13,13 +13,17 @@ import {
   Modal,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useFocusEffect } from '@react-navigation/native';
 import { AuthContext } from '../context/AuthContext';
-import { serviceGet, servicePost, BASE_URL, MEDIA_URL } from '../services/api';
+import { serviceGet, servicePost, BASE_URL, MEDIA_URL, getFavoritos } from '../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import FormularioScreen from './FormularioScreen';
+import PropiedadCard from '../components/PropiedadCard';
+import { useAuth } from '../context/AuthContext';
 
 export default function PerfilScreen({ navigation }) {
   const { user, logout, loadUser } = useContext(AuthContext);
+  const { favoritosIds, toggleFavorito, loadFavoritos } = useAuth();
   const [userData, setUserData] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -28,11 +32,26 @@ export default function PerfilScreen({ navigation }) {
   const [loadingPropiedades, setLoadingPropiedades] = useState(false);
   const [solicitudEnviada, setSolicitudEnviada] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState('propiedades');
+  const [favoritos, setFavoritos] = useState([]);
+  const [loadingFavoritos, setLoadingFavoritos] = useState(false);
 
   useEffect(() => {
     fetchUserData();
     checkSolicitud();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'favoritos' && userData?.id) {
+      fetchFavoritos();
+    }
+  }, [activeTab, userData?.id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadFavoritos();
+    }, [loadFavoritos])
+  );
 
   const checkSolicitud = async () => {
     const sent = await AsyncStorage.getItem('roleRequestSent');
@@ -58,8 +77,9 @@ export default function PerfilScreen({ navigation }) {
     try {
       const response = await serviceGet(`users/${userId}/propiedades?limit=100`);
       const data = response.data || [];
-      setPropiedades(data);
-      selectRandom(data);
+      const transformed = data.map(transformPropiedad);
+      setPropiedades(transformed);
+      selectRandom(transformed);
     } catch (err) {
       console.error('Error al cargar propiedades:', err);
       setPropiedades([]);
@@ -68,6 +88,34 @@ export default function PerfilScreen({ navigation }) {
       setLoadingPropiedades(false);
     }
   };
+
+  const fetchFavoritos = async () => {
+    setLoadingFavoritos(true);
+    try {
+      const response = await getFavoritos();
+      const data = response.data || [];
+      const transformed = data.map(transformPropiedad);
+      setFavoritos(transformed);
+    } catch (err) {
+      console.error('Error al cargar favoritos:', err);
+      setFavoritos([]);
+    } finally {
+      setLoadingFavoritos(false);
+    }
+  };
+
+  const transformPropiedad = (prop) => ({
+    id: prop.id,
+    titulo: prop.titulo,
+    imagen: prop.fotos?.[0] ? `${MEDIA_URL}/storage/${prop.fotos[0]}` : '',
+    ubicacion: prop.direccion,
+    precio: prop.precio,
+    habitaciones: prop.habitaciones,
+    banos: prop.banos,
+    metros: prop.metros_cuadrados,
+    // Keep original data for other uses
+    ...prop,
+  });
 
   const selectRandom = (list) => {
     if (list.length <= 3) {
@@ -87,8 +135,15 @@ export default function PerfilScreen({ navigation }) {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchUserData();
+    if (activeTab === 'favoritos') {
+      await fetchFavoritos();
+    }
     setRefreshing(false);
-  }, []);
+  }, [activeTab]);
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+  };
 
   const enviarSolicitud = async () => {
     try {
@@ -153,14 +208,27 @@ export default function PerfilScreen({ navigation }) {
           </View>
 
           <View style={styles.navItems}>
-            <TouchableOpacity style={[styles.navItem, styles.navItemActive]}>
-              <Text style={[styles.navItemText, styles.navItemTextActive]}>Perfil</Text>
+            <TouchableOpacity
+              style={[styles.navItem, activeTab === 'propiedades' && styles.navItemActive]}
+              onPress={() => handleTabChange('propiedades')}
+            >
+              <Text style={[styles.navItemText, activeTab === 'propiedades' && styles.navItemTextActive]}>
+                Perfil
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.navItem}
               onPress={() => setShowEditModal(true)}
             >
               <Text style={styles.navItemText}>Editar Perfil</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.navItem, activeTab === 'favoritos' && styles.navItemActive]}
+              onPress={() => handleTabChange('favoritos')}
+            >
+              <Text style={[styles.navItemText, activeTab === 'favoritos' && styles.navItemTextActive]}>
+                Favoritos
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.navItem, styles.logoutItem]} onPress={handleLogout}>
               <Text style={[styles.navItemText, styles.logoutText]}>Cerrar Sesión</Text>
@@ -214,36 +282,78 @@ export default function PerfilScreen({ navigation }) {
             </LinearGradient>
           )}
 
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Mis Propiedades</Text>
-              <View style={styles.countBadge}>
-                <Text style={styles.countBadgeText}>{propiedades.length} Publicada(s)</Text>
+          {activeTab === 'propiedades' && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Mis Propiedades</Text>
+                <View style={styles.countBadge}>
+                  <Text style={styles.countBadgeText}>{propiedades.length} Publicada(s)</Text>
+                </View>
               </View>
-            </View>
 
-            {loadingPropiedades ? (
-              <View style={styles.skeletonGrid}>
-                {[1, 2, 3].map((n) => (
-                  <SkeletonCard key={n} />
-                ))}
+              {loadingPropiedades ? (
+                <View style={styles.skeletonGrid}>
+                  {[1, 2, 3].map((n) => (
+                    <SkeletonCard key={n} />
+                  ))}
+                </View>
+              ) : propiedades.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyTitle}>No has publicado propiedades aún</Text>
+                  <Text style={styles.emptyDesc}>Publica tu primera propiedad para comenzar.</Text>
+                  <TouchableOpacity style={styles.publishBtn}>
+                    <Text style={styles.publishBtnText}>Publicar</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.propertiesGrid}>
+                  {propiedadesMostradas.map((prop) => (
+                    <PropiedadCard
+                      key={prop.id}
+                      propiedad={prop}
+                      esFavorito={favoritosIds.includes(prop.id)}
+                      onToggleFavorito={() => toggleFavorito(prop.id)}
+                    />
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
+
+          {activeTab === 'favoritos' && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Favoritos</Text>
+                <View style={styles.countBadge}>
+                  <Text style={styles.countBadgeText}>{favoritos.length} guardada(s)</Text>
+                </View>
               </View>
-            ) : propiedades.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>No has publicado propiedades aún</Text>
-                <Text style={styles.emptyDesc}>Publica tu primera propiedad para comenzar.</Text>
-                <TouchableOpacity style={styles.publishBtn}>
-                  <Text style={styles.publishBtnText}>Publicar</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View style={styles.propertiesGrid}>
-                {propiedadesMostradas.map((prop) => (
-                  <PropertyCard key={prop.id} propiedad={prop} />
-                ))}
-              </View>
-            )}
-          </View>
+
+              {loadingFavoritos ? (
+                <View style={styles.skeletonGrid}>
+                  {[1, 2, 3].map((n) => (
+                    <SkeletonCard key={n} />
+                  ))}
+                </View>
+              ) : favoritos.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyTitle}>No tienes favoritos aún</Text>
+                  <Text style={styles.emptyDesc}>Marca propiedades con ❤️ para verlas aquí</Text>
+                </View>
+              ) : (
+                <View style={styles.propertiesGrid}>
+                  {favoritos.map((prop) => (
+                    <PropiedadCard
+                      key={prop.id}
+                      propiedad={prop}
+                      esFavorito={favoritosIds.includes(prop.id)}
+                      onToggleFavorito={() => toggleFavorito(prop.id)}
+                    />
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
         </View>
       </View>
     </ScrollView>
@@ -293,74 +403,6 @@ function SkeletonCard() {
         <Animated.View style={[styles.skeletonLine, { width: '40%', opacity: pulseAnim }]} />
       </View>
     </View>
-  );
-}
-
-function PropertyCard({ propiedad }) {
-  const getEstadoStyle = (estado) => {
-    switch (estado) {
-      case 'Rentada': return { backgroundColor: '#4cc9f0' };
-      case 'Disponible': return { backgroundColor: '#2ec4b6' };
-      case 'Inactiva': return { backgroundColor: '#adb5bd' };
-      default: return { backgroundColor: '#e0e4fc' };
-    }
-  };
-
-  return (
-    <TouchableOpacity style={styles.propertyCard}>
-      <View style={styles.propertyImageContainer}>
-        {propiedad.fotos?.length > 0 ? (
-          <Image
-             source={{ uri: `${MEDIA_URL}/storage/${propiedad.fotos[0]}` }}
-            style={styles.propertyImage}
-          />
-        ) : (
-          <View style={styles.propertyImagePlaceholder}>
-            <Text style={styles.placeholderIcon}>🏠</Text>
-          </View>
-        )}
-        <View style={styles.propertyOverlay} />
-        <View style={[styles.propertyBadge, getEstadoStyle(propiedad.estado_propiedad)]}>
-          <Text style={styles.propertyBadgeText}>{propiedad.estado_propiedad}</Text>
-        </View>
-        {propiedad.resenas_avg_puntuacion != null && (
-          <View style={styles.ratingBadge}>
-            <Text style={styles.ratingStar}>⭐</Text>
-            <Text style={styles.ratingText}>{Number(propiedad.resenas_avg_puntuacion).toFixed(1)}</Text>
-          </View>
-        )}
-      </View>
-      <View style={styles.propertyDetails}>
-        <Text style={styles.propertyTitle} numberOfLines={1}>{propiedad.titulo}</Text>
-        <View style={styles.propertyTypeBadge}>
-          <Text style={styles.propertyTypeText}>{propiedad.tipo_propiedad?.nombre || 'Propiedad'}</Text>
-        </View>
-        <Text style={styles.propertyLocation}>📍 {propiedad.direccion}</Text>
-        <View style={styles.propertyFeatures}>
-          <Text style={styles.feature}>🛏 {propiedad.habitaciones} hab</Text>
-          <Text style={styles.feature}>🚿 {propiedad.banos} baños</Text>
-        </View>
-        <View style={styles.propertyFooter}>
-          <View style={styles.ownerInfo}>
-            {propiedad.propietario?.avatar_url ? (
-              <Image source={{ uri: propiedad.propietario.avatar_url }} style={styles.ownerAvatar} />
-            ) : (
-              <View style={styles.ownerAvatarPlaceholder}>
-                <Text>👤</Text>
-              </View>
-            )}
-            <View>
-              <Text style={styles.ownerName}>{propiedad.propietario?.first_name}</Text>
-              <Text style={styles.ownerLabel}>Propietario</Text>
-            </View>
-          </View>
-          <Text style={styles.propertyPrice}>
-            ${propiedad.precio}
-            {propiedad.tipo_operacion === 'Renta' && '/mes'}
-          </Text>
-        </View>
-      </View>
-    </TouchableOpacity>
   );
 }
 

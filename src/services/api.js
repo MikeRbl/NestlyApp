@@ -114,7 +114,7 @@ function mockMatch(endpoint) {
   }
 
 
-  if (
+if (
     endpoint.startsWith('users/') &&
     endpoint.includes('/propiedades')
   ) {
@@ -123,6 +123,11 @@ function mockMatch(endpoint) {
     };
   }
 
+  if (endpoint === 'favoritos' || endpoint === 'favoritos/ids') {
+    return {
+      data: []
+    };
+  }
 
   if (endpoint === 'user/avatar') {
     return {

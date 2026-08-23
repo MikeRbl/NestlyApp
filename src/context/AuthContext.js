@@ -1,13 +1,51 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../services/api';
 import { MOCK_AUTH, MOCK_USER, MOCK_TOKEN } from '../config/mock';
+import { getIdsFavoritos, agregarFavorito, quitarFavorito } from '../services/api';
 
 export const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [favoritosIds, setFavoritosIds] = useState([]);
+  const [loadingFavoritos, setLoadingFavoritos] = useState(false);
+
+  const loadFavoritos = useCallback(async () => {
+    if (!user?.id) return;
+    setLoadingFavoritos(true);
+    try {
+      const response = await getIdsFavoritos();
+      const ids = response.data || [];
+      setFavoritosIds(ids);
+    } catch (err) {
+      console.error('Error al cargar favoritos:', err);
+      setFavoritosIds([]);
+    } finally {
+      setLoadingFavoritos(false);
+    }
+  }, [user?.id]);
+
+  const toggleFavorito = async (propiedadId) => {
+    const isCurrentlyFav = favoritosIds.includes(propiedadId);
+    const newFavoritos = isCurrentlyFav
+      ? favoritosIds.filter((id) => id !== propiedadId)
+      : [...favoritosIds, propiedadId];
+
+    setFavoritosIds(newFavoritos);
+
+    try {
+      if (isCurrentlyFav) {
+        await quitarFavorito(propiedadId);
+      } else {
+        await agregarFavorito(propiedadId);
+      }
+    } catch (err) {
+      setFavoritosIds(favoritosIds);
+      console.error('Error al actualizar favorito:', err);
+    }
+  };
 
   useEffect(() => {
     const restoreSession = async () => {
@@ -30,6 +68,12 @@ export function AuthProvider({ children }) {
     };
     restoreSession();
   }, []);
+
+  useEffect(() => {
+    if (user?.id) {
+      loadFavoritos();
+    }
+  }, [user?.id]);
 
   const loadUser = async () => {
     if (MOCK_AUTH) {
@@ -91,7 +135,21 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, loadUser, login, register, logout, continueAsGuest }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isLoading,
+        loadUser,
+        login,
+        register,
+        logout,
+        continueAsGuest,
+        favoritosIds,
+        loadingFavoritos,
+        toggleFavorito,
+        loadFavoritos,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
