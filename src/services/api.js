@@ -84,6 +84,64 @@ export default api;
 
 
 // ===============================
+// SUBIDA MULTIPART CON XMLHttpRequest
+// (Evita "Network request failed" del fetch+FormData
+//  con archivos en RN 0.81 / New Architecture / Android)
+// ===============================
+
+export function uploadMultipart(url, formData, headers = {}, timeoutMs = 60000) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+    xhr.timeout = timeoutMs;
+
+    Object.entries(headers).forEach(([name, value]) => {
+      if (value != null) xhr.setRequestHeader(name, value);
+    });
+
+    xhr.onload = () => {
+      let json = null;
+      try {
+        json = responseTextToJson(xhr.responseText);
+      } catch {
+        json = null;
+      }
+
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(json);
+        return;
+      }
+
+      const error = new Error(json?.message || `Error ${xhr.status}`);
+      error.status = xhr.status;
+      error.errors = json?.errors;
+      error.message = json?.message || `Error ${xhr.status}`;
+      reject(error);
+    };
+
+    xhr.onerror = () => {
+      const error = new Error('Network request failed');
+      error.status = 0;
+      reject(error);
+    };
+
+    xhr.ontimeout = () => {
+      const error = new Error('Timeout al subir los datos');
+      error.status = 0;
+      reject(error);
+    };
+
+    xhr.send(formData);
+  });
+}
+
+function responseTextToJson(text) {
+  if (!text) return null;
+  return JSON.parse(text);
+}
+
+
+// ===============================
 // MOCK
 // ===============================
 
@@ -429,31 +487,11 @@ export async function crearPropiedad(formData){
   const headers = await getHeaders(true);
 
 
-  const response = await fetch(
+  return uploadMultipart(
     `${API_URL}/propiedades`,
-    {
-      method:'POST',
-      headers,
-      body:formData
-    }
+    formData,
+    headers
   );
-
-
-  const json = await response.json();
-
-
-  if(!response.ok){
-
-    throw {
-      status:response.status,
-      errors:json.errors,
-      message:json.message
-    };
-
-  }
-
-
-  return json;
 }
 
 
@@ -469,32 +507,11 @@ export async function actualizarPropiedad(id,formData){
   const headers = await getHeaders(true);
 
 
-
-  const response = await fetch(
+  return uploadMultipart(
     `${API_URL}/propiedades/${id}`,
-    {
-      method:'POST',
-      headers,
-      body:formData
-    }
+    formData,
+    headers
   );
-
-
-  const json = await response.json();
-
-
-  if(!response.ok){
-
-    throw {
-      status:response.status,
-      errors:json.errors,
-      message:json.message
-    };
-
-  }
-
-
-  return json;
 }
 
 
@@ -510,6 +527,17 @@ export async function eliminarPropiedad(id){
 
 }
 
+
+
+
+export async function actualizarEstadoPropiedad(id, estado){
+
+  return servicePut(
+    `propiedades/${id}/estado`,
+    { estado_propiedad: estado }
+  );
+
+}
 
 
 
@@ -568,6 +596,55 @@ export async function quitarFavorito(id){
   return serviceDelete(
     `favoritos/quitar`,
     id
+  );
+
+}
+
+
+
+
+// ===============================
+// CONTACTOS / SOLICITUDES A PROPIETARIOS
+// ===============================
+
+
+export async function enviarContacto(propiedadId, mensaje){
+
+  return servicePost(
+    'contactos',
+    { propiedad_id: propiedadId, mensaje }
+  );
+
+}
+
+
+export async function getMisContactos(estado){
+
+  const query = estado ? `?estado=${estado}` : '';
+
+  return serviceGet(
+    `contactos/mios${query}`
+  );
+
+}
+
+
+export async function getMisContactosEnviados(estado){
+
+  const query = estado ? `?estado=${estado}` : '';
+
+  return serviceGet(
+    `contactos/enviadas${query}`
+  );
+
+}
+
+
+export async function responderContacto(id, estado){
+
+  return servicePut(
+    `contactos/${id}`,
+    { estado }
   );
 
 }

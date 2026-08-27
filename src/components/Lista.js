@@ -1,5 +1,5 @@
 import React from 'react';
-import { FlatList, StyleSheet, View, Text, ScrollView, TouchableOpacity } from 'react-native';
+import { FlatList, StyleSheet, View, Text, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import PropiedadCard from './PropiedadCard';
 import { colors } from '../theme/colors';
@@ -10,7 +10,16 @@ const REVIEWS_MOCK = [
   { id: 3, comentario: 'Me encantó la facilidad para filtrar por ubicación y precio. Definitivamente la recomiendo a todos mis amigos que buscan independizarse.', nombre: 'Miguel Ángel', anio: '2023' },
 ];
 
-export default function Lista({ propiedades = [], onPropiedadPress, headerComponent, favoritos = [], onToggleFavorito }) {
+export default function Lista({
+  propiedades = [],
+  onPropiedadPress,
+  headerComponent,
+  favoritos = [],
+  onToggleFavorito,
+  refreshing,
+  onRefresh,
+  emptyComponent,
+}) {
   
   const renderFooter = () => (
     <View style={styles.footerWrapper}>
@@ -83,7 +92,14 @@ export default function Lista({ propiedades = [], onPropiedadPress, headerCompon
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.flatListContent}
         ListHeaderComponent={headerComponent}
+        ListEmptyComponent={emptyComponent}
         ListFooterComponent={renderFooter()}
+        keyboardShouldPersistTaps="handled"
+        refreshControl={
+          refreshing != null && onRefresh != null ? (
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          ) : undefined
+        }
       />
     </View>
   );

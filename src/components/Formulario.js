@@ -22,6 +22,12 @@ import PhotoPicker from './PhotoPicker';
 
 const TOTAL_STEPS = 3;
 const GEOCODE_DEBOUNCE_MS = 700;
+// Nominatim (OSM) bloquea peticiones anónimas con 403. Identificamos la app.
+const NOMINATIM_HEADERS = {
+  'User-Agent': 'NestlyApp/1.0 (contacto@nestlyapp.com)',
+  'Referer': 'https://nestlyapp.com',
+  'Accept': 'application/json',
+};
 // Límite del backend: 2048 KB por imagen. Dejamos margen de seguridad.
 const MAX_FOTO_BYTES = 1.9 * 1024 * 1024;
 const INT_FIELDS = ['habitaciones', 'banos', 'metros_cuadrados'];
@@ -76,6 +82,22 @@ function fotoUrl(path) {
   if (/^https?:\/\//i.test(path)) return path;
   const separator = path.startsWith('/') ? '' : '/';
   return `${MEDIA_URL}/storage${separator}${path}`;
+}
+
+function normalizeMimeType(file) {
+  const rawType = file?.type || file?.mimeType;
+  if (rawType && rawType.includes('/')) return rawType;
+  const ext = (file?.fileName || file?.uri || '').split('.').pop()?.toLowerCase() || '';
+  const map = {
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    webp: 'image/webp',
+    gif: 'image/gif',
+    heic: 'image/heic',
+    mp4: 'video/mp4',
+  };
+  return map[ext] || 'image/jpeg';
 }
 
 export default function Formulario({ onClose, user, navigation, initialData, onSuccess }) {
@@ -158,7 +180,7 @@ export default function Formulario({ onClose, user, navigation, initialData, onS
   const geocodeLatLng = useCallback(async (lat, lng) => {
     try {
       const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
-      const response = await fetch(url);
+      const response = await fetch(url, { headers: NOMINATIM_HEADERS });
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
       if (data.address) {
@@ -167,7 +189,14 @@ export default function Formulario({ onClose, user, navigation, initialData, onS
         setValue('pais', address.country || '', { shouldValidate: false });
         setValue('estado_ubicacion', address.state || address.state_district || '', { shouldValidate: false });
         setValue('ciudad', address.city || address.town || address.village || '', { shouldValidate: false });
-        setValue('colonia', address.suburb || address.neighbourhood || '', { shouldValidate: false });
+        setValue('colonia',
+          address.suburb ||
+          address.neighbourhood ||
+          address.quarter ||
+          address.city_district ||
+          address.residential ||
+          address.hamlet ||
+          '', { shouldValidate: false });
       } else {
         Toast.show({
           type: 'info',
@@ -175,7 +204,7 @@ export default function Formulario({ onClose, user, navigation, initialData, onS
         });
       }
     } catch (error) {
-      console.error('Error al geocodificar (reverse):', error);
+      console.warn('Error al geocodificar (reverse):', error);
       Toast.show({
         type: 'error',
         text1: `Error en geocodificación: ${error.message}`,
@@ -187,7 +216,7 @@ export default function Formulario({ onClose, user, navigation, initialData, onS
     if (!address) return;
     try {
       const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1&addressdetails=1`;
-      const response = await fetch(url);
+      const response = await fetch(url, { headers: NOMINATIM_HEADERS });
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
       if (data && data.length > 0) {
@@ -201,7 +230,7 @@ export default function Formulario({ onClose, user, navigation, initialData, onS
         });
       }
     } catch (error) {
-      console.error('Error en geocodificación directa:', error);
+      console.warn('Error en geocodificación directa:', error);
       Toast.show({
         type: 'error',
         text1: `Error al buscar en mapa: ${error.message}`,
@@ -217,7 +246,12 @@ export default function Formulario({ onClose, user, navigation, initialData, onS
       .filter((part) => part && part.trim() !== '')
       .join(', ');
 
-    if (fullAddressQuery.length <= 5) return;
+    // Solo geocodificar si hay al menos una parte de ubicación específica
+    // (evita golpear Nominatim con consultas triviales como solo el país).
+    const hasMeaningfulPart = [direccion, colonia, ciudad, estado_ubicacion]
+      .some((part) => part && part.trim().length >= 3);
+
+    if (!hasMeaningfulPart || fullAddressQuery.length <= 5) return;
 
     const timer = setTimeout(() => {
       geocodeAddress(fullAddressQuery);
@@ -241,7 +275,7 @@ export default function Formulario({ onClose, user, navigation, initialData, onS
       const { latitude, longitude } = location.coords;
       await geocodeLatLng(latitude, longitude);
     } catch (error) {
-      console.error('Error obteniendo ubicación:', error);
+      console.warn('Error obteniendo ubicación:', error);
       Toast.show({
         type: 'error',
         text1: 'No se pudo obtener la ubicación actual.',
@@ -290,6 +324,13 @@ export default function Formulario({ onClose, user, navigation, initialData, onS
       });
       return;
     }
+
+    console.log('📸 Fotos a subir:', fotosNuevas.map((f) => ({
+      name: f.fileName || f.uri?.split('/').pop(),
+      uri: f.uri,
+      type: f.type,
+      fileSize: f.fileSize ?? 'DESCONOCIDO',
+    })));
 
     async function uriToFile(uri, fileName, type) {
       const response = await fetch(uri);
@@ -342,7 +383,7 @@ export default function Formulario({ onClose, user, navigation, initialData, onS
           const fileObj = await uriToFile(
             file.uri,
             file.fileName || file.uri.split('/').pop(),
-            file.type || 'image/jpeg'
+            normalizeMimeType(file) || file.type || 'image/jpeg'
           );
           if (fileObj.size > MAX_FOTO_BYTES) {
             throw new Error(`La imagen "${fileObj.name}" supera el límite de 2MB. Elige otra o reduce su tamaño.`);
@@ -353,7 +394,7 @@ export default function Formulario({ onClose, user, navigation, initialData, onS
         fotosNuevas.forEach((file) => {
           formData.append('fotos[]', {
             uri: file.uri,
-            type: file.type || 'image/jpeg',
+            type: normalizeMimeType(file) || file.type || 'image/jpeg',
             name: file.fileName || file.uri.split('/').pop(),
           });
         });
@@ -627,7 +668,12 @@ export default function Formulario({ onClose, user, navigation, initialData, onS
         <Controller
           control={control}
           name="mascotas"
-          rules={{ required: 'Indica si se aceptan mascotas.' }}
+          rules={{
+            validate: (value) =>
+              value === true || value === false
+                ? true
+                : 'Indica si se aceptan mascotas.',
+          }}
           render={({ field: { value, onChange }, fieldState: { error } }) => (
             <View>
               <ToggleSwitch
@@ -728,10 +774,11 @@ export default function Formulario({ onClose, user, navigation, initialData, onS
         <Controller
           control={control}
           name="colonia"
-          render={({ field: { onChange, onBlur, value } }) => (
-            <FormInput label="Colonia (opcional)">
+          rules={{ required: 'Requerido.', maxLength: { value: 100, message: 'Máx. 100.' } }}
+          render={({ field: { onChange, onBlur, value }, fieldState: { error } }) => (
+            <FormInput label="Colonia" error={error}>
               <TextInput
-                style={styles.input}
+                style={[styles.input, error && styles.inputError]}
                 value={value}
                 onChangeText={onChange}
                 onBlur={onBlur}
@@ -753,7 +800,7 @@ export default function Formulario({ onClose, user, navigation, initialData, onS
                 value={value}
                 onChangeText={onChange}
                 onBlur={onBlur}
-                placeholder="Calle, número, código postal"
+                placeholder="Calle, número y código postal"
                 placeholderTextColor={colors.textSecondary}
               />
             </FormInput>

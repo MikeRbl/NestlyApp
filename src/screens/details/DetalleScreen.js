@@ -9,6 +9,7 @@ import {
   Modal,
   Alert,
   ActivityIndicator,
+  TextInput,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,17 +18,20 @@ import Carrusel from '../../components/Carrusel';
 import Formulario from '../../components/Formulario';
 import Toast from 'react-native-toast-message';
 import { useAuth } from '../../context/AuthContext';
-import { getPropiedad, eliminarPropiedad } from '../../services/api';
+import { getPropiedad, eliminarPropiedad, enviarContacto } from '../../services/api';
 
 export default function DetalleScreen() {
   const route = useRoute();
   const navigation = useNavigation();
-  const { favoritosIds, toggleFavorito, user } = useAuth();
+  const { favoritosIds, toggleFavorito, user, isGuest, exitGuestMode } = useAuth();
   const propiedadParam = route.params?.propiedad;
 
   const [propiedad, setPropiedad] = useState(propiedadParam || null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showContactModal, setShowContactModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSendingContact, setIsSendingContact] = useState(false);
+  const [contactMessage, setContactMessage] = useState('');
 
   const propiedadId = propiedadParam?.id ?? propiedadParam?.id_propiedad;
 
@@ -71,6 +75,44 @@ export default function DetalleScreen() {
       </View>
     );
   }
+
+  const handleContactar = () => {
+    if (isGuest) {
+      Alert.alert(
+        'Para continuar',
+        'Para contactar al propietario, regístrate o inicia sesión.',
+        [
+          { text: 'Crear Cuenta', onPress: () => exitGuestMode('register') },
+          { text: 'Iniciar Sesión', onPress: () => exitGuestMode('login') },
+          { text: 'Cancelar', style: 'cancel' },
+        ]
+      );
+      return;
+    }
+    setContactMessage('');
+    setShowContactModal(true);
+  };
+
+  const enviarSolicitudContacto = async () => {
+    if (!idResuelto) return;
+    setIsSendingContact(true);
+    try {
+      await enviarContacto(idResuelto, contactMessage.trim() || null);
+      setShowContactModal(false);
+      Toast.show({
+        type: 'success',
+        text1: 'Solicitud enviada',
+        text2: 'Se notificó al propietario para que la apruebe.',
+      });
+    } catch (err) {
+      Toast.show({
+        type: 'error',
+        text1: err.error?.message || err.message || 'No se pudo enviar la solicitud.',
+      });
+    } finally {
+      setIsSendingContact(false);
+    }
+  };
 
   const handleEliminar = () => {
     Alert.alert(
@@ -160,7 +202,7 @@ export default function DetalleScreen() {
           <Text style={styles.contactText}>Teléfono: {propiedad.telefono}</Text>
 
           {!esPropietario && (
-            <TouchableOpacity style={styles.contactButton} activeOpacity={0.8}>
+            <TouchableOpacity style={styles.contactButton} activeOpacity={0.8} onPress={handleContactar}>
               <Text style={styles.contactButtonText}>Contactar</Text>
             </TouchableOpacity>
           )}
@@ -203,6 +245,46 @@ export default function DetalleScreen() {
             onSuccess={fetchPropiedad}
           />
         )}
+      </Modal>
+
+      <Modal visible={showContactModal} transparent animationType="fade">
+        <View style={styles.contactOverlay}>
+          <View style={styles.contactModal}>
+            <Text style={styles.contactModalTitle}>Contactar al propietario</Text>
+            <Text style={styles.contactModalDesc}>
+              Envía un mensaje al propietario. Se le notificará para que lo apruebe.
+            </Text>
+            <TextInput
+              style={styles.contactInput}
+              placeholder="Escribe tu mensaje (opcional)"
+              placeholderTextColor={colors.textSecondary}
+              value={contactMessage}
+              onChangeText={setContactMessage}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
+            <TouchableOpacity
+              style={[styles.contactSendBtn, isSendingContact && styles.contactSendBtnDisabled]}
+              activeOpacity={0.8}
+              onPress={enviarSolicitudContacto}
+              disabled={isSendingContact}
+            >
+              {isSendingContact ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.contactSendBtnText}>Enviar solicitud</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.contactCancelBtn}
+              activeOpacity={0.8}
+              onPress={() => setShowContactModal(false)}
+            >
+              <Text style={styles.contactCancelBtnText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
     </View>
   );
@@ -391,5 +473,67 @@ const styles = StyleSheet.create({
   },
   ownerBtnTextDanger: {
     color: '#EF4444',
+  },
+  contactOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  contactModal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 420,
+    alignSelf: 'center',
+  },
+  contactModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    marginBottom: 6,
+  },
+  contactModalDesc: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  contactInput: {
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: colors.textPrimary,
+    minHeight: 90,
+    marginBottom: 16,
+    backgroundColor: '#FFF',
+  },
+  contactSendBtn: {
+    backgroundColor: colors.primary,
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  contactSendBtnDisabled: {
+    backgroundColor: colors.textSecondary,
+  },
+  contactSendBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  contactCancelBtn: {
+    paddingVertical: 6,
+    alignItems: 'center',
+  },
+  contactCancelBtnText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    fontWeight: '500',
   },
 });

@@ -1,15 +1,30 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 
 export default function PropiedadCard({ propiedad, onPress, esFavorito, onToggleFavorito }) {
+  const [imagenFallida, setImagenFallida] = useState(false);
+
   if (!propiedad) return null;
+
+  const tieneImagen = !!propiedad?.imagen && !imagenFallida;
 
   return (
     <TouchableOpacity style={styles.card} activeOpacity={0.95} onPress={onPress}>
       <View style={styles.imageContainer}>
-        <Image source={{ uri: propiedad?.imagen }} style={styles.image} />
+        {tieneImagen ? (
+          <Image
+            source={{ uri: propiedad.imagen }}
+            style={styles.image}
+            onError={() => setImagenFallida(true)}
+          />
+        ) : (
+          <View style={styles.imagePlaceholder}>
+            <Ionicons name="home-outline" size={48} color={colors.textSecondary} />
+            <Text style={styles.imagePlaceholderText}>Sin foto</Text>
+          </View>
+        )}
         <TouchableOpacity style={styles.favoriteButton} activeOpacity={0.7} onPress={onToggleFavorito}>
           <Ionicons
             name={esFavorito ? 'heart' : 'heart-outline'}
@@ -73,6 +88,19 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     resizeMode: 'cover',
+  },
+  imagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: colors.inputBg,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+  },
+  imagePlaceholderText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: '500',
   },
   favoriteButton: {
     position: 'absolute',

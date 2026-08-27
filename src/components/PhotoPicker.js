@@ -34,11 +34,27 @@ export default function PhotoPicker({
     return permission.status === 'granted';
   }
 
+  function normalizeMime(asset) {
+    const rawType = asset.type || asset.mimeType;
+    if (rawType && rawType.includes('/')) return rawType;
+    const ext = (asset.fileName || asset.uri || '').split('.').pop()?.toLowerCase() || '';
+    const map = {
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      png: 'image/png',
+      webp: 'image/webp',
+      gif: 'image/gif',
+      heic: 'image/heic',
+      mp4: 'video/mp4',
+    };
+    return map[ext] || 'image/jpeg';
+  }
+
   function normalizeAssets(assets) {
     return assets.map((asset) => ({
       uri: asset.uri,
       fileName: asset.fileName || asset.uri.split('/').pop(),
-      type: asset.type || 'image/jpeg',
+      type: normalizeMime(asset),
       fileSize: asset.fileSize,
       width: asset.width,
       height: asset.height,

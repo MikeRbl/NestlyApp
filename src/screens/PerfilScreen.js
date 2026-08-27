@@ -10,29 +10,41 @@ import {
   RefreshControl,
   Animated,
   Modal,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { AuthContext } from '../context/AuthContext';
-import { serviceGet, servicePost, BASE_URL, MEDIA_URL, getFavoritos } from '../services/api';
+import { serviceGet, servicePost, BASE_URL, MEDIA_URL, getFavoritos, eliminarPropiedad, actualizarEstadoPropiedad, getMisContactos, getMisContactosEnviados, responderContacto } from '../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Toast from 'react-native-toast-message';
 import FormularioScreen from './FormularioScreen';
+import Formulario from '../components/Formulario';
 import PropiedadCard from '../components/PropiedadCard';
 import { useAuth } from '../context/AuthContext';
+import { colors } from '../theme/colors';
 
 export default function PerfilScreen({ navigation }) {
   const { user, logout, refreshUser, isGuest, exitGuestMode } = useContext(AuthContext);
   const { favoritosIds, toggleFavorito, loadFavoritos } = useAuth();
   const userData = user;
   const [showEditModal, setShowEditModal] = useState(false);
+  const [propiedadEnEdicion, setPropiedadEnEdicion] = useState(null);
   const [propiedades, setPropiedades] = useState([]);
-  const [propiedadesMostradas, setPropiedadesMostradas] = useState([]);
   const [loadingPropiedades, setLoadingPropiedades] = useState(false);
   const [solicitudEnviada, setSolicitudEnviada] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('propiedades');
   const [favoritos, setFavoritos] = useState([]);
   const [loadingFavoritos, setLoadingFavoritos] = useState(false);
+  const [contactos, setContactos] = useState([]);
+  const [loadingContactos, setLoadingContactos] = useState(false);
+  const [misEnviados, setMisEnviados] = useState([]);
+  const [loadingMisEnviados, setLoadingMisEnviados] = useState(false);
+  const [respondiendoContactoId, setRespondiendoContactoId] = useState(null);
+
+  const esPropietarioAdmin = userData?.role === 'propietario' || userData?.role === 'admin';
 
   useEffect(() => {
     checkSolicitud();
@@ -43,6 +55,19 @@ export default function PerfilScreen({ navigation }) {
       fetchFavoritos();
     }
   }, [activeTab, userData?.id]);
+
+  useEffect(() => {
+    if (activeTab === 'solicitudes' && esPropietarioAdmin) {
+      fetchContactos();
+      fetchMisEnviados();
+    }
+  }, [activeTab, esPropietarioAdmin]);
+
+  useEffect(() => {
+    if (activeTab === 'mis-solicitudes' && !isGuest) {
+      fetchMisEnviados();
+    }
+  }, [activeTab, isGuest]);
 
   useFocusEffect(
     useCallback(() => {
@@ -62,15 +87,13 @@ export default function PerfilScreen({ navigation }) {
     if (!userId) return;
     setLoadingPropiedades(true);
     try {
-      const response = await serviceGet(`users/${userId}/propiedades?limit=100`);
+      const response = await serviceGet(`users/${userId}/propiedades?per_page=100`);
       const data = response.data || [];
       const transformed = data.map(transformPropiedad);
       setPropiedades(transformed);
-      selectRandom(transformed);
     } catch (err) {
       console.error('Error al cargar propiedades:', err);
       setPropiedades([]);
-      setPropiedadesMostradas([]);
     } finally {
       setLoadingPropiedades(false);
     }
@@ -91,6 +114,72 @@ export default function PerfilScreen({ navigation }) {
     }
   };
 
+  const fetchContactos = async () => {
+    if (!esPropietarioAdmin) return;
+    setLoadingContactos(true);
+    try {
+      const response = await getMisContactos();
+      setContactos(response.data || []);
+    } catch (err) {
+      console.error('Error al cargar solicitudes:', err);
+      setContactos([]);
+    } finally {
+      setLoadingContactos(false);
+    }
+  };
+
+  const fetchMisEnviados = async () => {
+    if (isGuest) return;
+    setLoadingMisEnviados(true);
+    try {
+      const response = await getMisContactosEnviados();
+      setMisEnviados(response.data || []);
+    } catch (err) {
+      console.error('Error al cargar mis solicitudes:', err);
+      setMisEnviados([]);
+    } finally {
+      setLoadingMisEnviados(false);
+    }
+  };
+
+  const handleResponderContacto = (contacto, estado) => {
+    const esAprobar = estado === 'aprobado';
+    Alert.alert(
+      esAprobar ? 'Aprobar solicitud' : 'Rechazar solicitud',
+      esAprobar
+        ? `¿Aprobar la solicitud de ${contacto.solicitante?.full_name || 'el solicitante'}?`
+        : `¿Rechazar la solicitud de ${contacto.solicitante?.full_name || 'el solicitante'}?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: esAprobar ? 'Aprobar' : 'Rechazar',
+          style: esAprobar ? 'default' : 'destructive',
+          onPress: async () => {
+            setRespondiendoContactoId(contacto.id);
+            try {
+              await responderContacto(contacto.id, estado);
+              Toast.show({
+                type: 'success',
+                text1: esAprobar ? 'Solicitud aprobada.' : 'Solicitud rechazada.',
+              });
+              fetchContactos();
+              fetchMisEnviados();
+            } catch (err) {
+              console.warn('Error al responder contacto:', err);
+              Toast.show({
+                type: 'error',
+                text1: err.error?.message || err.message || 'No se pudo procesar la solicitud.',
+              });
+              fetchContactos();
+            } finally {
+              setRespondiendoContactoId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const transformPropiedad = (prop) => ({
     id: prop.id_propiedad ?? prop.id,
     titulo: prop.titulo,
@@ -104,21 +193,6 @@ export default function PerfilScreen({ navigation }) {
     ...prop,
   });
 
-  const selectRandom = (list) => {
-    if (list.length <= 3) {
-      setPropiedadesMostradas([...list]);
-    } else {
-      const copy = [...list];
-      const selected = [];
-      for (let i = 0; i < 3; i++) {
-        const idx = Math.floor(Math.random() * copy.length);
-        selected.push(copy[idx]);
-        copy.splice(idx, 1);
-      }
-      setPropiedadesMostradas(selected);
-    }
-  };
-
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -129,10 +203,17 @@ export default function PerfilScreen({ navigation }) {
       if (activeTab === 'favoritos') {
         await fetchFavoritos();
       }
+      if (activeTab === 'solicitudes' && esPropietarioAdmin) {
+        await fetchContactos();
+        await fetchMisEnviados();
+      }
+      if (activeTab === 'mis-solicitudes' && !isGuest) {
+        await fetchMisEnviados();
+      }
     } finally {
       setRefreshing(false);
     }
-  }, [activeTab, refreshUser, userData?.id]);
+  }, [activeTab, refreshUser, userData?.id, esPropietarioAdmin, isGuest]);
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
@@ -158,6 +239,74 @@ export default function PerfilScreen({ navigation }) {
   const handleLogout = async () => {
     await logout();
     navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+  };
+
+  const recargarPropiedades = () => {
+    if (userData?.id) fetchPropiedades(userData.id);
+  };
+
+  const handlePausarActivar = (propiedad) => {
+    const esPausa = propiedad.estado_propiedad !== 'Inactiva';
+    const nuevoEstado = esPausa ? 'Inactiva' : 'Disponible';
+
+    Alert.alert(
+      esPausa ? 'Pausar propiedad' : 'Activar propiedad',
+      esPausa
+        ? '¿Seguro que deseas pausar esta propiedad? Dejará de mostrarse en el catálogo.'
+        : '¿Seguro que deseas reactivar esta propiedad? Volverá a estar disponible.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: esPausa ? 'Pausar' : 'Activar',
+          style: esPausa ? 'destructive' : 'default',
+          onPress: async () => {
+            try {
+              await actualizarEstadoPropiedad(propiedad.id, nuevoEstado);
+              Toast.show({
+                type: 'success',
+                text1: esPausa ? 'Propiedad pausada.' : 'Propiedad activada.',
+              });
+              recargarPropiedades();
+            } catch (err) {
+              Toast.show({
+                type: 'error',
+                text1: err.error?.message || err.message || 'No se pudo actualizar el estado.',
+              });
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleEliminarPropiedad = (propiedad) => {
+    Alert.alert(
+      'Eliminar propiedad',
+      '¿Seguro que deseas eliminar esta propiedad? Esta acción no se puede deshacer.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await eliminarPropiedad(propiedad.id);
+              Toast.show({ type: 'success', text1: 'Propiedad eliminada.' });
+              recargarPropiedades();
+            } catch (err) {
+              Toast.show({
+                type: 'error',
+                text1: err.error?.message || err.message || 'No se pudo eliminar la propiedad.',
+              });
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleEditarPropiedad = (propiedad) => {
+    setPropiedadEnEdicion(propiedad);
   };
 
   const formatDate = (dateStr) => {
@@ -246,6 +395,26 @@ export default function PerfilScreen({ navigation }) {
                 Favoritos
               </Text>
             </TouchableOpacity>
+            {esPropietarioAdmin && (
+              <TouchableOpacity
+                style={[styles.navItem, activeTab === 'solicitudes' && styles.navItemActive]}
+                onPress={() => handleTabChange('solicitudes')}
+              >
+                <Text style={[styles.navItemText, activeTab === 'solicitudes' && styles.navItemTextActive]}>
+                  Solicitudes
+                </Text>
+              </TouchableOpacity>
+            )}
+            {!isGuest && (
+              <TouchableOpacity
+                style={[styles.navItem, activeTab === 'mis-solicitudes' && styles.navItemActive]}
+                onPress={() => handleTabChange('mis-solicitudes')}
+              >
+                <Text style={[styles.navItemText, activeTab === 'mis-solicitudes' && styles.navItemTextActive]}>
+                  Mis Solicitudes
+                </Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity style={[styles.navItem, styles.logoutItem]} onPress={handleLogout}>
               <Text style={[styles.navItemText, styles.logoutText]}>Cerrar Sesión</Text>
             </TouchableOpacity>
@@ -326,14 +495,50 @@ export default function PerfilScreen({ navigation }) {
                 </View>
               ) : (
                 <View style={styles.propertiesGrid}>
-                  {propiedadesMostradas.map((prop) => (
-                    <PropiedadCard
-                      key={prop.id}
-                      propiedad={prop}
-                      esFavorito={favoritosIds.includes(prop.id)}
-                      onToggleFavorito={() => toggleFavorito(prop.id)}
-                      onPress={() => navigation.navigate('Detalle', { propiedad: prop })}
-                    />
+                  {propiedades.map((prop) => (
+                    <View key={prop.id} style={styles.propertyItem}>
+                      <PropiedadCard
+                        propiedad={prop}
+                        esFavorito={favoritosIds.includes(prop.id)}
+                        onToggleFavorito={() => toggleFavorito(prop.id)}
+                        onPress={() => navigation.navigate('Detalle', { propiedad: prop })}
+                      />
+                      <View style={styles.ownerActions}>
+                        <View style={[styles.estadoBadge, prop.estado_propiedad === 'Inactiva' && styles.estadoBadgeInactiva]}>
+                          <Text style={styles.estadoBadgeText}>{prop.estado_propiedad || 'Disponible'}</Text>
+                        </View>
+                        <TouchableOpacity
+                          style={[styles.actionBtn, styles.editBtn]}
+                          onPress={() => handleEditarPropiedad(prop)}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="create-outline" size={15} color="#4361ee" />
+                          <Text style={styles.editBtnText}>Editar</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.actionBtn, prop.estado_propiedad === 'Inactiva' ? styles.activateBtn : styles.pauseBtn]}
+                          onPress={() => handlePausarActivar(prop)}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons
+                            name={prop.estado_propiedad === 'Inactiva' ? 'play' : 'pause'}
+                            size={15}
+                            color={prop.estado_propiedad === 'Inactiva' ? '#16a34a' : '#d97706'}
+                          />
+                          <Text style={[styles.actionBtnText, prop.estado_propiedad === 'Inactiva' ? styles.activateText : styles.pauseText]}>
+                            {prop.estado_propiedad === 'Inactiva' ? 'Activar' : 'Pausar'}
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.actionBtn, styles.deleteBtn]}
+                          onPress={() => handleEliminarPropiedad(prop)}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="trash-outline" size={15} color="#EF4444" />
+                          <Text style={styles.deleteBtnText}>Eliminar</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
                   ))}
                 </View>
               )}
@@ -375,6 +580,192 @@ export default function PerfilScreen({ navigation }) {
               )}
             </View>
           )}
+
+          {activeTab === 'solicitudes' && esPropietarioAdmin && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Propiedades solicitadas</Text>
+                <View style={styles.countBadge}>
+                  <Text style={styles.countBadgeText}>
+                    {contactos.filter((c) => c.estado === 'pendiente').length} pendiente(s)
+                  </Text>
+                </View>
+              </View>
+
+              {loadingContactos ? (
+                <View style={styles.skeletonGrid}>
+                  {[1, 2, 3].map((n) => (
+                    <SkeletonCard key={n} />
+                  ))}
+                </View>
+              ) : contactos.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyTitle}>Sin solicitudes recibidas</Text>
+                  <Text style={styles.emptyDesc}>Cuando alguien contacte tu propiedad, aparecerá aquí.</Text>
+                </View>
+              ) : (
+                <View style={styles.contactosList}>
+                  {contactos.map((contacto) => (
+                    <View key={contacto.id} style={styles.contactoCard}>
+                      <View style={styles.contactoHeader}>
+                        <View style={styles.contactoAvatar}>
+                          <Ionicons name="person" size={18} color="#4361ee" />
+                        </View>
+                        <View style={styles.contactoHeaderText}>
+                          <Text style={styles.contactoNombre}>
+                            {contacto.solicitante?.full_name || 'Solicitante'}
+                          </Text>
+                          <Text style={styles.contactoPropiedad}>
+                            {contacto.propiedad?.titulo || 'Propiedad'}
+                          </Text>
+                        </View>
+                        <View style={[styles.contactoEstadoBadge, contacto.estado === 'pendiente' && styles.contactoEstadoPendiente, contacto.estado === 'aprobado' && styles.contactoEstadoAprobado, contacto.estado === 'rechazado' && styles.contactoEstadoRechazado]}>
+                          <Text style={styles.contactoEstadoText}>{contacto.estado}</Text>
+                        </View>
+                      </View>
+
+                      {contacto.mensaje ? (
+                        <Text style={styles.contactoMensaje}>"{contacto.mensaje}"</Text>
+                      ) : null}
+
+                      {contacto.estado === 'pendiente' && (
+                        <View style={styles.contactoActions}>
+                          <TouchableOpacity
+                            style={[styles.contactoBtn, styles.contactoAprobarBtn]}
+                            activeOpacity={0.8}
+                            onPress={() => handleResponderContacto(contacto, 'aprobado')}
+                            disabled={respondiendoContactoId === contacto.id}
+                          >
+                            <Ionicons name="checkmark" size={16} color="#16a34a" />
+                            <Text style={styles.contactoAprobarText}>Aprobar</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.contactoBtn, styles.contactoRechazarBtn]}
+                            activeOpacity={0.8}
+                            onPress={() => handleResponderContacto(contacto, 'rechazado')}
+                            disabled={respondiendoContactoId === contacto.id}
+                          >
+                            <Ionicons name="close" size={16} color="#EF4444" />
+                            <Text style={styles.contactoRechazarText}>Rechazar</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              <View style={styles.blockDivider} />
+
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Mis Solicitudes</Text>
+                <View style={styles.countBadge}>
+                  <Text style={styles.countBadgeText}>
+                    {misEnviados.filter((c) => c.estado === 'pendiente').length} pendiente(s)
+                  </Text>
+                </View>
+              </View>
+
+              {loadingMisEnviados ? (
+                <View style={styles.skeletonGrid}>
+                  {[1, 2, 3].map((n) => (
+                    <SkeletonCard key={n} />
+                  ))}
+                </View>
+              ) : misEnviados.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyTitle}>No has enviado solicitudes</Text>
+                  <Text style={styles.emptyDesc}>Las solicitudes que envíes a otros propietarios aparecerán aquí.</Text>
+                </View>
+              ) : (
+                <View style={styles.contactosList}>
+                  {misEnviados.map((contacto) => (
+                    <View key={contacto.id} style={styles.contactoCard}>
+                      <View style={styles.contactoHeader}>
+                        <View style={styles.contactoAvatar}>
+                          <Ionicons name="home-outline" size={18} color="#4361ee" />
+                        </View>
+                        <View style={styles.contactoHeaderText}>
+                          <Text style={styles.contactoNombre}>
+                            {contacto.propiedad?.titulo || 'Propiedad'}
+                          </Text>
+                          <Text style={styles.contactoPropiedad}>
+                            {contacto.propiedad?.propietario?.full_name
+                              ? `Propietario: ${contacto.propiedad.propietario.full_name}`
+                              : 'Propietario'}
+                          </Text>
+                        </View>
+                        <View style={[styles.contactoEstadoBadge, contacto.estado === 'pendiente' && styles.contactoEstadoPendiente, contacto.estado === 'aprobado' && styles.contactoEstadoAprobado, contacto.estado === 'rechazado' && styles.contactoEstadoRechazado]}>
+                          <Text style={styles.contactoEstadoText}>{contacto.estado}</Text>
+                        </View>
+                      </View>
+
+                      {contacto.mensaje ? (
+                        <Text style={styles.contactoMensaje}>"{contacto.mensaje}"</Text>
+                      ) : null}
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
+
+          {activeTab === 'mis-solicitudes' && !isGuest && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Mis Solicitudes</Text>
+                <View style={styles.countBadge}>
+                  <Text style={styles.countBadgeText}>
+                    {misEnviados.filter((c) => c.estado === 'pendiente').length} pendiente(s)
+                  </Text>
+                </View>
+              </View>
+
+              {loadingMisEnviados ? (
+                <View style={styles.skeletonGrid}>
+                  {[1, 2, 3].map((n) => (
+                    <SkeletonCard key={n} />
+                  ))}
+                </View>
+              ) : misEnviados.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyTitle}>No has enviado solicitudes</Text>
+                  <Text style={styles.emptyDesc}>
+                    Cuando contactes a un propietario, tu solicitud aparecerá aquí con su estado.
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.contactosList}>
+                  {misEnviados.map((contacto) => (
+                    <View key={contacto.id} style={styles.contactoCard}>
+                      <View style={styles.contactoHeader}>
+                        <View style={styles.contactoAvatar}>
+                          <Ionicons name="home-outline" size={18} color="#4361ee" />
+                        </View>
+                        <View style={styles.contactoHeaderText}>
+                          <Text style={styles.contactoNombre}>
+                            {contacto.propiedad?.titulo || 'Propiedad'}
+                          </Text>
+                          <Text style={styles.contactoPropiedad}>
+                            {contacto.propiedad?.propietario?.full_name
+                              ? `Propietario: ${contacto.propiedad.propietario.full_name}`
+                              : 'Propietario'}
+                          </Text>
+                        </View>
+                        <View style={[styles.contactoEstadoBadge, contacto.estado === 'pendiente' && styles.contactoEstadoPendiente, contacto.estado === 'aprobado' && styles.contactoEstadoAprobado, contacto.estado === 'rechazado' && styles.contactoEstadoRechazado]}>
+                          <Text style={styles.contactoEstadoText}>{contacto.estado}</Text>
+                        </View>
+                      </View>
+
+                      {contacto.mensaje ? (
+                        <Text style={styles.contactoMensaje}>"{contacto.mensaje}"</Text>
+                      ) : null}
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
         </View>
       </View>
     </ScrollView>
@@ -384,6 +775,21 @@ export default function PerfilScreen({ navigation }) {
         navigation={navigation}
         onClose={() => setShowEditModal(false)}
       />
+    </Modal>
+
+    <Modal visible={!!propiedadEnEdicion} animationType="slide">
+      {propiedadEnEdicion && (
+        <Formulario
+          initialData={propiedadEnEdicion}
+          user={userData}
+          navigation={navigation}
+          onClose={() => setPropiedadEnEdicion(null)}
+          onSuccess={() => {
+            setPropiedadEnEdicion(null);
+            recargarPropiedades();
+          }}
+        />
+      )}
     </Modal>
     </>
   );
@@ -592,6 +998,172 @@ const styles = StyleSheet.create({
   skeletonLine: { height: 12, backgroundColor: '#e0e0e0', borderRadius: 6 },
 
   propertiesGrid: { gap: 16 },
+  propertyItem: {
+    gap: 8,
+  },
+  ownerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+  },
+  estadoBadge: {
+    backgroundColor: '#dcfce7',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  estadoBadgeInactiva: {
+    backgroundColor: '#fee2e2',
+  },
+  estadoBadgeText: {
+    color: '#166534',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  actionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    backgroundColor: '#fff',
+  },
+  editBtn: {
+    borderColor: '#c7d2fe',
+  },
+  editBtnText: {
+    color: '#4361ee',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  pauseBtn: {
+    borderColor: '#fed7aa',
+  },
+  pauseText: {
+    color: '#d97706',
+  },
+  activateBtn: {
+    borderColor: '#bbf7d0',
+  },
+  activateText: {
+    color: '#16a34a',
+  },
+  deleteBtn: {
+    borderColor: '#fecaca',
+  },
+  deleteBtnText: {
+    color: '#EF4444',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  actionBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  contactosList: {
+    gap: 12,
+  },
+  blockDivider: {
+    height: 1,
+    backgroundColor: '#e5e7eb',
+    marginVertical: 24,
+  },
+  contactoCard: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+    gap: 10,
+  },
+  contactoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  contactoAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#e0e4fc',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  contactoHeaderText: {
+    flex: 1,
+  },
+  contactoNombre: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#2b2d42',
+  },
+  contactoPropiedad: {
+    fontSize: 13,
+    color: '#8d99ae',
+    marginTop: 2,
+  },
+  contactoEstadoBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: '#e2e8f0',
+  },
+  contactoEstadoPendiente: {
+    backgroundColor: '#fef3c7',
+  },
+  contactoEstadoAprobado: {
+    backgroundColor: '#dcfce7',
+  },
+  contactoEstadoRechazado: {
+    backgroundColor: '#fee2e2',
+  },
+  contactoEstadoText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+    textTransform: 'capitalize',
+  },
+  contactoMensaje: {
+    fontSize: 14,
+    color: '#475569',
+    fontStyle: 'italic',
+    lineHeight: 20,
+  },
+  contactoActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 4,
+  },
+  contactoBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  contactoAprobarBtn: {
+    borderColor: '#16a34a',
+    backgroundColor: '#f0fdf4',
+  },
+  contactoAprobarText: {
+    color: '#16a34a',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  contactoRechazarBtn: {
+    borderColor: '#EF4444',
+    backgroundColor: '#fef2f2',
+  },
+  contactoRechazarText: {
+    color: '#EF4444',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   propertyCard: {
     backgroundColor: '#fff',
     borderRadius: 10,

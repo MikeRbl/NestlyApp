@@ -5,10 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  ScrollView,
-  RefreshControl,
   Animated,
-  Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
@@ -203,7 +200,6 @@ export default function ExplorarPropiedadesScreen({ navigation }) {
           value={filtros.direccion}
           onChangeText={(v) => setFiltros(prev => ({ ...prev, direccion: v }))}
           placeholderTextColor={colors.textSecondary}
-          onFocus={() => Keyboard.dismiss()}
         />
       </View>
 
@@ -271,12 +267,8 @@ export default function ExplorarPropiedadesScreen({ navigation }) {
     );
   }
 
-  return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      keyboardShouldPersistTaps="handled"
-    >
+  const headerContent = (
+    <>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
           <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
@@ -312,33 +304,41 @@ export default function ExplorarPropiedadesScreen({ navigation }) {
           <Text style={styles.sortText}>Orden: Precio menor a mayor</Text>
         </View>
       </View>
+    </>
+  );
 
-      {propiedadesFiltradas.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Ionicons name="search-outline" size={48} color={colors.textSecondary} />
-          <Text style={styles.emptyTitle}>No hay propiedades</Text>
-          <Text style={styles.emptyDesc}>
-            {filtrosActivos > 0
-              ? 'Prueba ajustando los filtros de búsqueda'
-              : 'No hay propiedades disponibles en este momento'}
-          </Text>
-          {filtrosActivos > 0 && (
-            <TouchableOpacity style={styles.resetBtn} onPress={resetFiltros} activeOpacity={0.7}>
-              <Text style={styles.resetBtnText}>Limpiar todos los filtros</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      ) : (
-        <Lista
-          propiedades={propiedadesFiltradas}
-          onPropiedadPress={(propiedad) => {
-            navigation.navigate('Detalle', { propiedad });
-          }}
-          favoritos={favoritosIds}
-          onToggleFavorito={toggleFavorito}
-        />
+  const emptyState = (
+    <View style={styles.emptyState}>
+      <Ionicons name="search-outline" size={48} color={colors.textSecondary} />
+      <Text style={styles.emptyTitle}>No hay propiedades</Text>
+      <Text style={styles.emptyDesc}>
+        {filtrosActivos > 0
+          ? 'Prueba ajustando los filtros de búsqueda'
+          : 'No hay propiedades disponibles en este momento'}
+      </Text>
+      {filtrosActivos > 0 && (
+        <TouchableOpacity style={styles.resetBtn} onPress={resetFiltros} activeOpacity={0.7}>
+          <Text style={styles.resetBtnText}>Limpiar todos los filtros</Text>
+        </TouchableOpacity>
       )}
-    </ScrollView>
+    </View>
+  );
+
+  return (
+    <View style={styles.container}>
+      <Lista
+        propiedades={propiedadesFiltradas}
+        onPropiedadPress={(propiedad) => {
+          navigation.navigate('Detalle', { propiedad });
+        }}
+        favoritos={favoritosIds}
+        onToggleFavorito={toggleFavorito}
+        headerComponent={headerContent}
+        emptyComponent={emptyState}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+      />
+    </View>
   );
 }
 
